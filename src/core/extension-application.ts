@@ -1,7 +1,7 @@
 import { DEFAULT_PANO_LAYOUT } from "../domain/types.js";
 import type { LatLng, MapClickButton, PanoLayout } from "../domain/types.js";
+import { isExtensionContextInvalidatedError } from "../extension/extension-context.js";
 import type {
-  CredentialSource,
   HostPage,
   SettingsStore,
   StreetViewSurface,
@@ -9,18 +9,26 @@ import type {
 
 export type ExtensionApplicationDeps = {
   hostPage: HostPage;
-  credentials: CredentialSource;
   streetView: StreetViewSurface;
   settings: SettingsStore;
 };
 
+const NEED_MAPS_KEY_MESSAGE =
+  "Paste a Maps Key in the Extension Popup to load Street View.";
+const REJECTED_MAPS_KEY_MESSAGE =
+  "Check your Maps Key and Google Cloud setup.";
+
+function ignoreInvalidatedContext(err: unknown): void {
+  if (isExtensionContextInvalidatedError(err)) return;
+  console.error("[Strava Streets]", err);
+}
+
 /**
  * Extension application core.
- * Testable behind Host Page / Credential source / Street View surface fakes.
+ * Testable behind Host Page / Street View surface / SettingsStore fakes.
  */
 export class ExtensionApplication {
   private readonly hostPage: HostPage;
-  private readonly credentials: CredentialSource;
   private readonly streetView: StreetViewSurface;
   private readonly settings: SettingsStore;
 
@@ -35,7 +43,6 @@ export class ExtensionApplication {
 
   constructor(deps: ExtensionApplicationDeps) {
     this.hostPage = deps.hostPage;
-    this.credentials = deps.credentials;
     this.streetView = deps.streetView;
     this.settings = deps.settings;
   }
@@ -63,13 +70,15 @@ export class ExtensionApplication {
 
     this.unsubs.push(
       this.settings.onSettingsChange(() => {
-        void this.refreshFromSettings();
+        void this.refreshFromSettings().catch(ignoreInvalidatedContext);
       }),
     );
 
     this.unsubs.push(
       this.hostPage.onRouteBuilderChange((active) => {
-        void this.handleRouteBuilderChange(active);
+        void this.handleRouteBuilderChange(active).catch(
+          ignoreInvalidatedContext,
+        );
       }),
     );
 
@@ -82,7 +91,7 @@ export class ExtensionApplication {
 
     this.unsubs.push(
       this.streetView.onLayoutChange((layout) => {
-        void this.settings.setPanoLayout(layout);
+        void this.settings.setPanoLayout(layout).catch(ignoreInvalidatedContext);
       }),
     );
 
@@ -93,7 +102,7 @@ export class ExtensionApplication {
             if (!this.onRouteBuilder) return;
             await this.ensurePanoMounted();
             this.streetView.setStatusMessage(reason);
-          })();
+          })().catch(ignoreInvalidatedContext);
         }),
       );
     }
@@ -143,7 +152,7 @@ export class ExtensionApplication {
     if (this.mapClickUnsub) return;
     this.mapClickUnsub = this.hostPage.onMapClick((point, button) => {
       if (button !== this.mapClickButton) return;
-      void this.applyAnchor(point);
+      void this.applyAnchor(point).catch(ignoreInvalidatedContext);
     });
   }
 
@@ -175,19 +184,18 @@ export class ExtensionApplication {
     this.userDismissed = false;
     await this.ensurePanoMounted();
 
-    const result = await this.credentials.getStreetViewCredentials();
-    if (result.status === "denied") {
-      this.streetView.setStatusMessage(result.reason);
+    const mapsKey = (await this.settings.getMapsKey()).trim();
+    if (!mapsKey) {
+      this.streetView.setStatusMessage(NEED_MAPS_KEY_MESSAGE);
       return;
     }
 
     this.streetView.setStatusMessage(null);
 
     try {
-      const coverage = await this.streetView.showAnchor(
-        point,
-        result.credential,
-      );
+      const coverage = await this.streetView.showAnchor(point, {
+        apiKey: mapsKey,
+      });
       if (coverage === "covered") {
         this.lastSuccessfulAnchor = point;
         this.coverageGapActive = false;
@@ -199,9 +207,21 @@ export class ExtensionApplication {
         // Keep peg on last successful Pano (do not move to the gap click).
       }
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Street View failed to load";
-      this.streetView.setStatusMessage(message);
+      if (isExtensionContextInvalidatedError(err)) return;
+      this.streetView.setStatusMessage(mapsKeySetupFailureMessage(err));
     }
   }
+}
+
+function mapsKeySetupFailureMessage(err: unknown): string {
+  const message =
+    err instanceof Error ? err.message : "Street View failed to load";
+  if (
+    /maps key|google (cloud|maps)|invalidkey|apinotactivated|referernotallowed|unauthorizedurl|failed to load google maps/i.test(
+      message,
+    )
+  ) {
+    return REJECTED_MAPS_KEY_MESSAGE;
+  }
+  return message;
 }

@@ -1,10 +1,15 @@
 import { DEFAULT_PANO_LAYOUT } from "../../domain/types.js";
 import type { MapClickButton, PanoLayout } from "../../domain/types.js";
+import {
+  isExtensionContextInvalidatedError,
+  isExtensionContextValid,
+} from "../../extension/extension-context.js";
 import type { SettingsStore } from "../../ports/index.js";
 
 const KEYS = {
   mapClickButton: "ssp.mapClickButton",
   panoLayout: "ssp.panoLayout",
+  mapsKey: "ssp.mapsKey",
 } as const;
 
 type ChangeListener = () => void;
@@ -14,8 +19,9 @@ function parseMapClickButton(value: unknown): MapClickButton {
 }
 
 /**
- * chrome.storage.sync-backed settings (falls back to local).
- * Map Click Button default: right.
+ * chrome.storage-backed settings.
+ * Map Click Button / Pano layout: sync (falls back to local).
+ * Maps Key: local only (this browser profile).
  */
 export class ChromeSettingsStore implements SettingsStore {
   private listeners = new Set<ChangeListener>();
@@ -28,6 +34,15 @@ export class ChromeSettingsStore implements SettingsStore {
 
   async setMapClickButton(button: MapClickButton): Promise<void> {
     await this.set(KEYS.mapClickButton, button);
+  }
+
+  async getMapsKey(): Promise<string> {
+    const v = await this.getFrom(this.localArea(), KEYS.mapsKey);
+    return typeof v === "string" ? v : "";
+  }
+
+  async setMapsKey(key: string): Promise<void> {
+    await this.setOn(this.localArea(), KEYS.mapsKey, key);
   }
 
   async getPanoLayout(): Promise<PanoLayout | null> {
@@ -67,29 +82,74 @@ export class ChromeSettingsStore implements SettingsStore {
   };
 
   private ensureWatch(): void {
-    if (this.watching || typeof chrome === "undefined" || !chrome.storage) {
+    if (
+      this.watching ||
+      !isExtensionContextValid() ||
+      typeof chrome === "undefined" ||
+      !chrome.storage
+    ) {
       return;
     }
     this.watching = true;
-    chrome.storage.onChanged.addListener((changes, area) => {
-      if (area !== "sync" && area !== "local") return;
-      if (KEYS.mapClickButton in changes) {
-        for (const l of this.listeners) l();
-      }
-    });
+    try {
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== "sync" && area !== "local") return;
+        if (KEYS.mapClickButton in changes || KEYS.mapsKey in changes) {
+          for (const l of this.listeners) l();
+        }
+      });
+    } catch {
+      this.watching = false;
+    }
   }
 
-  private storageArea(): chrome.storage.StorageArea {
-    return chrome.storage.sync ?? chrome.storage.local;
+  private storageArea(): chrome.storage.StorageArea | null {
+    if (!isExtensionContextValid() || typeof chrome === "undefined") {
+      return null;
+    }
+    return chrome.storage.sync ?? chrome.storage.local ?? null;
+  }
+
+  private localArea(): chrome.storage.StorageArea | null {
+    if (!isExtensionContextValid() || typeof chrome === "undefined") {
+      return null;
+    }
+    return chrome.storage.local ?? null;
   }
 
   private async get(key: string): Promise<unknown> {
-    const area = this.storageArea();
-    const result = await area.get(key);
-    return result[key];
+    return this.getFrom(this.storageArea(), key);
   }
 
   private async set(key: string, value: unknown): Promise<void> {
-    await this.storageArea().set({ [key]: value });
+    await this.setOn(this.storageArea(), key, value);
+  }
+
+  private async getFrom(
+    area: chrome.storage.StorageArea | null,
+    key: string,
+  ): Promise<unknown> {
+    try {
+      if (!area) return undefined;
+      const result = await area.get(key);
+      return result[key];
+    } catch (err) {
+      if (isExtensionContextInvalidatedError(err)) return undefined;
+      throw err;
+    }
+  }
+
+  private async setOn(
+    area: chrome.storage.StorageArea | null,
+    key: string,
+    value: unknown,
+  ): Promise<void> {
+    try {
+      if (!area) return;
+      await area.set({ [key]: value });
+    } catch (err) {
+      if (isExtensionContextInvalidatedError(err)) return;
+      throw err;
+    }
   }
 }

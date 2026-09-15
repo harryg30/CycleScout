@@ -4,67 +4,52 @@ Chrome Manifest V3 extension that shows a view-only Google Street View **Pano Wi
 
 ## Status
 
-- **#8** Map Click → Pano Window with **Dev Key Override** is on `main`.
-- **#9** Access Service HTTP API: see [`access-service/`](access-service/).
-- Real account wiring (#12) is a follow-up.
+Riders generate a **Maps Key** in their own Google Cloud project and paste it in the Extension Popup. Store and Dev are the same experience. Access Service is not part of this product (ADR 0007).
 
 ## Setup
 
-```bash
-cp .env.example .env
-# Put your Google Maps JavaScript API key in .env:
-# GOOGLE_MAPS_API_KEY=...
+1. Enable the **Maps JavaScript API** in your Google Cloud project.
+2. Create an API key.
+3. Restrict HTTP referrers to `https://www.strava.com/*` (Maps JS loads on Route Builder, not as `chrome-extension://`).
+4. Paste the key in the **Extension Popup**. See [Get an API key](https://developers.google.com/maps/documentation/javascript/get-api-key).
 
+Google Maps cost is billed to your Google Cloud account. This extension does not mint, share, or rate-limit a key.
+
+```bash
 npm install
-npm run build:dev    # sideload artifact with Dev Key Override
+npm run build
 npm test
-```
-
-Store/production profile (no Dev Key Override adapter):
-
-```bash
-npm run build:store
 ```
 
 ## Sideload (Chrome)
 
-1. `npm run build:dev`
+1. `npm run build`
 2. Chrome → `chrome://extensions` → Developer mode → **Load unpacked**
 3. Select the `dist/` folder
-4. Open Strava Route Builder at `https://www.strava.com/maps/*` with the feature on in the popup
-5. Click the map to set an **Anchor Point** and load Street View
+4. Paste your Maps Key in the Extension Popup
+5. Open Strava Route Builder at `https://www.strava.com/maps/*`
+6. Click the map to set an **Anchor Point** and load Street View
 
 Route Builder is **only** `https://www.strava.com/maps/*` — content script and Host Page matching use that pattern; elsewhere the extension does not inject / is a silent no-op.
-
-## Access Service (#9 / #14)
-
-```bash
-cd access-service
-npm install
-npm test
-```
-
-Mint surface: `POST /v1/credentials/mint` after Google OAuth (`GET /v1/auth/google/start` → callback) sets a session cookie. Details in [`access-service/README.md`](access-service/README.md).
 
 ## Layout
 
 | Path | Role |
 |------|------|
 | `src/core/` | Extension application core (Anchor Point, Pano lifecycle, Coverage Gap) |
-| `src/ports/` | Host Page, Credential source, Street View surface, Settings |
-| `src/adapters/` | Strava Host Page, Maps JS surface (isolated-world RPC), Dev Key Override / Store deny, chrome.storage |
-| `src/extension/` | MV3 background, content script, popup; **page-world** injectables (`maps-page-bridge`, `host-mre-bridge`) that cannot use `chrome.*` |
-| `access-service/` | Access + Google Auth Modules + HTTP Adapter (Mint, OAuth, Quota) |
+| `src/ports/` | Host Page, Street View surface, Settings |
+| `src/adapters/` | Strava Host Page, Maps JS surface (isolated-world RPC), chrome.storage |
+| `src/extension/` | Content script, popup; **page-world** injectables (`maps-page-bridge`, `host-mre-bridge`) that cannot use `chrome.*` |
 | `tests/` | Seam tests with fakes (no Strava DOM / Maps SDK internals); unit tests OK for pure helpers |
-| `scripts/build.mjs` | esbuild; injects `.env` key into **dev** builds only |
+| `scripts/build.mjs` | esbuild; one artifact for Store and Dev |
 
 ## Popup
 
 - **Set Anchor with** Left click / Right click (default Right; persisted)
-- Account row: **Dev build** (dev profile) or **Not connected** (store profile)
+- **Maps Key** field plus generate steps (Maps JavaScript API, create key, restrict referrers)
 
 ## Notes
 
 - Non–Route Builder Strava pages: silent no-op (no Pano, no listeners, no toasts).
 - **Coverage Gap**: keeps last successful Pano + “No Street View at this point”; never blanks or auto-snaps.
-- `.env` is gitignored; only `.env.example` is committed.
+- Maps Key is stored in `chrome.storage.local` for this browser profile.

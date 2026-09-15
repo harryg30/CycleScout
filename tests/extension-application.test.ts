@@ -2,7 +2,6 @@ import { describe, expect, it, beforeEach } from "vitest";
 import { ExtensionApplication } from "../src/core/extension-application.js";
 import { DEFAULT_PANO_LAYOUT } from "../src/domain/types.js";
 import {
-  FakeCredentialSource,
   FakeHostPage,
   FakeSettingsStore,
   FakeStreetViewSurface,
@@ -14,19 +13,16 @@ function pointKey(lat: number, lng: number): string {
 
 describe("ExtensionApplication seams", () => {
   let host: FakeHostPage;
-  let credentials: FakeCredentialSource;
   let streetView: FakeStreetViewSurface;
   let settings: FakeSettingsStore;
   let app: ExtensionApplication;
 
   beforeEach(async () => {
     host = new FakeHostPage();
-    credentials = new FakeCredentialSource();
     streetView = new FakeStreetViewSurface();
     settings = new FakeSettingsStore();
     app = new ExtensionApplication({
       hostPage: host,
-      credentials,
       streetView,
       settings,
     });
@@ -39,7 +35,6 @@ describe("ExtensionApplication seams", () => {
     expect(host.mapClickSubscriptionCount).toBe(0);
 
     host.emitMapClick({ lat: 40.7, lng: -74.0 });
-    expect(credentials.calls).toBe(0);
     expect(streetView.shownAnchors).toHaveLength(0);
   });
 
@@ -93,11 +88,70 @@ describe("ExtensionApplication seams", () => {
     host.emitMapClick(point);
     await flush();
 
-    expect(credentials.calls).toBe(1);
     expect(streetView.shownAnchors).toEqual([point]);
     expect(streetView.lastSuccessfulPoint).toEqual(point);
     expect(app.getState().lastSuccessfulAnchor).toEqual(point);
     expect(streetView.coverageGapNotice).toBe(false);
+  });
+
+  it("empty Maps Key: Map Click does not load Street View and Pano says they need a Maps Key", async () => {
+    settings.mapsKey = "";
+    host.setRouteBuilder(true);
+    await flush();
+
+    host.emitMapClick({ lat: 37.77, lng: -122.42 });
+    await flush();
+
+    expect(streetView.shownAnchors).toHaveLength(0);
+    expect(streetView.lastCredential).toBeNull();
+    expect(streetView.statusMessage).toBe(
+      "Paste a Maps Key in the Extension Popup to load Street View.",
+    );
+  });
+
+  it("whitespace-only Maps Key is treated as empty", async () => {
+    settings.mapsKey = "   ";
+    host.setRouteBuilder(true);
+    await flush();
+
+    host.emitMapClick({ lat: 1, lng: 1 });
+    await flush();
+
+    expect(streetView.shownAnchors).toHaveLength(0);
+    expect(streetView.statusMessage).toBe(
+      "Paste a Maps Key in the Extension Popup to load Street View.",
+    );
+  });
+
+  it("saved Maps Key: Map Click loads Street View with that key", async () => {
+    settings.mapsKey = "rider-maps-key-abc";
+    host.setRouteBuilder(true);
+    await flush();
+
+    const point = { lat: 37.77, lng: -122.42 };
+    host.emitMapClick(point);
+    await flush();
+
+    expect(streetView.shownAnchors).toEqual([point]);
+    expect(streetView.lastCredential).toEqual({ apiKey: "rider-maps-key-abc" });
+    expect(streetView.statusMessage).toBeNull();
+  });
+
+  it("rejected Maps Key tells the rider to check Maps Key / Google Cloud setup", async () => {
+    settings.mapsKey = "bad-key";
+    streetView.failShowWith = "Failed to load Google Maps JavaScript API";
+    host.setRouteBuilder(true);
+    await flush();
+
+    host.emitMapClick({ lat: 40.7, lng: -74.0 });
+    await flush();
+
+    expect(streetView.statusMessage).toBe(
+      "Check your Maps Key and Google Cloud setup.",
+    );
+    expect(streetView.statusMessage).not.toMatch(
+      /quota_exceeded|membership_required|unauthenticated/,
+    );
   });
 
   it("Coverage Gap keeps last successful Pano and shows notice; clears on covered point", async () => {
@@ -185,27 +239,7 @@ describe("ExtensionApplication seams", () => {
     expect(settings.panoLayout).toEqual(next);
   });
 
-  it("credential denial surfaces a status message without blanking", async () => {
-    host.setRouteBuilder(true);
-    await flush();
-    host.emitMapClick({ lat: 1, lng: 1 });
-    await flush();
-    expect(streetView.lastSuccessfulPoint).toEqual({ lat: 1, lng: 1 });
-
-    credentials.next = {
-      status: "denied",
-      code: "quota_exceeded",
-      reason: "quota exceeded",
-    };
-    host.emitMapClick({ lat: 9, lng: 9 });
-    await flush();
-
-    expect(streetView.statusMessage).toBe("quota exceeded");
-    expect(streetView.lastSuccessfulPoint).toEqual({ lat: 1, lng: 1 });
-    expect(streetView.blanked).toBe(false);
-  });
-
-  it("membership_required denial blocks Street View load and keeps prior Pano", async () => {
+  it("empty Maps Key after a successful Pano keeps imagery and does not load a new Anchor", async () => {
     host.setRouteBuilder(true);
     await flush();
     host.emitMapClick({ lat: 1, lng: 1 });
@@ -213,16 +247,12 @@ describe("ExtensionApplication seams", () => {
     expect(streetView.lastSuccessfulPoint).toEqual({ lat: 1, lng: 1 });
     const shownBefore = streetView.shownAnchors.length;
 
-    credentials.next = {
-      status: "denied",
-      code: "membership_required",
-      reason: "Street View access is not available for this account.",
-    };
+    settings.mapsKey = "";
     host.emitMapClick({ lat: 9, lng: 9 });
     await flush();
 
     expect(streetView.statusMessage).toBe(
-      "Street View access is not available for this account.",
+      "Paste a Maps Key in the Extension Popup to load Street View.",
     );
     expect(streetView.lastSuccessfulPoint).toEqual({ lat: 1, lng: 1 });
     expect(streetView.shownAnchors).toHaveLength(shownBefore);

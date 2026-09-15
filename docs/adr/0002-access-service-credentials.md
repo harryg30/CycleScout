@@ -1,5 +1,7 @@
 # Access Service owns Maps credentials; Dev Key Override is non-Store only
 
+**Status:** superseded by [ADR 0007](0007-rider-maps-key.md).
+
 Store Phase users must not receive our master Google API key, and “everyone pastes their own key” fights billing and quota. The extension obtains a time-limited Grant from a project-owned Access Service after mint-entitlement and Quota checks. A Dev Key Override may exist for local debugging when the Access Service is down, and must never be enabled in Store builds.
 
 Riders authenticate with Google OAuth; every successful login gets Role `base`. Role `base` is mint-entitled in the free tier. Paid Membership (Patreon-style, #12) is distinct from `base` and later changes tiers/caps — it is not required for Mint while free `base` remains entitled. Wire deny `membership_required` means **lacking mint entitlement**, not “lacking paid Membership.”

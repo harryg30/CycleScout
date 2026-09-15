@@ -1,4 +1,3 @@
-import { createCredentialSource } from "../adapters/credentials/active.js";
 import { StravaHostPage } from "../adapters/host-page/strava-host-page.js";
 import { ChromeSettingsStore } from "../adapters/settings/chrome-settings-store.js";
 import { MapsStreetViewSurface } from "../adapters/street-view/maps-street-view-surface.js";
@@ -37,7 +36,6 @@ function showBootError(err: unknown): void {
 try {
   const app = new ExtensionApplication({
     hostPage: new StravaHostPage(),
-    credentials: createCredentialSource(),
     streetView: new MapsStreetViewSurface(),
     settings: new ChromeSettingsStore(),
   });

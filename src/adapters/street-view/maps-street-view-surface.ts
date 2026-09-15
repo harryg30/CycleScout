@@ -4,6 +4,7 @@ import type {
   PanoLayout,
   StreetViewCredential,
 } from "../../domain/types.js";
+import { extensionResourceUrl } from "../../extension/extension-context.js";
 import type { StreetViewSurface } from "../../ports/index.js";
 
 const ROOT_ID = "strava-streets-pano-root";
@@ -189,11 +190,12 @@ export class MapsStreetViewSurface implements StreetViewSurface {
 
     this.bridgeReady = new Promise((resolve, reject) => {
       let settled = false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
       const finish = (err?: Error) => {
         if (settled) return;
         settled = true;
         window.removeEventListener("message", onReady);
-        window.clearTimeout(timer);
+        if (timer !== undefined) window.clearTimeout(timer);
         if (err) {
           this.bridgeReady = null;
           reject(err);
@@ -212,19 +214,35 @@ export class MapsStreetViewSurface implements StreetViewSurface {
       };
       window.addEventListener("message", onReady);
 
-      const existing = document.getElementById("ssp-maps-page-bridge");
-      if (existing) {
-        finish();
+      try {
+        const existing = document.getElementById("ssp-maps-page-bridge");
+        if (existing) {
+          finish();
+          return;
+        }
+
+        const url = extensionResourceUrl("maps-page-bridge.js");
+        if (!url) {
+          finish(new Error("Extension context invalidated."));
+          return;
+        }
+
+        const script = document.createElement("script");
+        script.id = "ssp-maps-page-bridge";
+        script.src = url;
+        script.onerror = () =>
+          finish(new Error("Failed to inject Maps page bridge"));
+        (document.head || document.documentElement).appendChild(script);
+      } catch (err) {
+        finish(
+          err instanceof Error
+            ? err
+            : new Error("Maps page bridge inject threw"),
+        );
         return;
       }
 
-      const script = document.createElement("script");
-      script.id = "ssp-maps-page-bridge";
-      script.src = chrome.runtime.getURL("maps-page-bridge.js");
-      script.onerror = () => finish(new Error("Failed to inject Maps page bridge"));
-      (document.head || document.documentElement).appendChild(script);
-
-      const timer = window.setTimeout(() => {
+      timer = window.setTimeout(() => {
         finish(new Error("Timed out waiting for Maps page bridge"));
       }, 5000);
     });

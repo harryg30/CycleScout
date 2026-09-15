@@ -1,24 +1,10 @@
 import type {
-  AccountSnapshot,
   CoverageStatus,
-  CredentialResult,
   LatLng,
   MapClickButton,
   PanoLayout,
   StreetViewCredential,
 } from "../domain/types.js";
-
-/**
- * Credential source Seam.
- * Dev Key Override and Access Service Adapters both implement this.
- * getStreetViewCredentials is the only Mint trigger; getAccount never Mints.
- */
-export interface CredentialSource {
-  getStreetViewCredentials(): Promise<CredentialResult>;
-  getAccount(): Promise<AccountSnapshot>;
-  /** Opens Access OAuth start (no-op under Dev Key Override). */
-  beginLogin(): Promise<void>;
-}
 
 /**
  * Host Page port — Route Builder enter/leave and Map Click (left or right).
@@ -80,8 +66,11 @@ export interface StreetViewSurface {
 export interface SettingsStore {
   getMapClickButton(): Promise<MapClickButton>;
   setMapClickButton(button: MapClickButton): Promise<void>;
+  /** Rider Maps Key for this browser profile; empty string if unset. */
+  getMapsKey(): Promise<string>;
+  setMapsKey(key: string): Promise<void>;
   getPanoLayout(): Promise<PanoLayout | null>;
   setPanoLayout(layout: PanoLayout): Promise<void>;
-  /** Subscribe to Map Click Button changes from Popup or elsewhere. */
+  /** Subscribe to Map Click Button / Maps Key changes from Popup or elsewhere. */
   onSettingsChange(listener: () => void): () => void;
 }

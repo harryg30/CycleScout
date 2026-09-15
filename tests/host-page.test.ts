@@ -1,7 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { AccessCredentialSource } from "../src/adapters/credentials/access-credential-source.js";
-import { createCredentialSourceForProfile } from "../src/adapters/credentials/create-credential-source.js";
-import { DevKeyOverrideCredentialSource } from "../src/adapters/credentials/dev-key-override.js";
 import {
   clickScreenMatchesAnchor,
   exceedsDragThreshold,
@@ -9,44 +6,6 @@ import {
   isRouteBuilderUrl,
   MAP_DRAG_THRESHOLD_PX,
 } from "../src/adapters/host-page/strava-host-page.js";
-
-describe("Dev Key Override / credential wiring", () => {
-  it("dev profile uses Dev Key Override adapter", () => {
-    const source = createCredentialSourceForProfile("dev");
-    expect(source).toBeInstanceOf(DevKeyOverrideCredentialSource);
-  });
-
-  it("store profile helper selects AccessCredentialSource without Dev Key Override", () => {
-    // Profile helper only proves Adapter choice — production Store uses
-    // BackgroundCredentialProxy via active.store.ts (see ADR 0002).
-    const source = createCredentialSourceForProfile("store");
-    expect(source).toBeInstanceOf(AccessCredentialSource);
-    expect(source).not.toBeInstanceOf(DevKeyOverrideCredentialSource);
-  });
-
-  it("Dev Key Override returns ok when key present", async () => {
-    const source = new DevKeyOverrideCredentialSource("maps-key-123");
-    await expect(source.getStreetViewCredentials()).resolves.toEqual({
-      status: "ok",
-      credential: { apiKey: "maps-key-123" },
-    });
-    await expect(source.getAccount()).resolves.toEqual({ kind: "dev_override" });
-  });
-
-  it("Dev Key Override denies when key missing", async () => {
-    const source = new DevKeyOverrideCredentialSource("");
-    const result = await source.getStreetViewCredentials();
-    expect(result.status).toBe("denied");
-    if (result.status === "denied") {
-      expect(result.code).toBe("unavailable");
-    }
-  });
-
-  it("Dev Key Override beginLogin is a no-op", async () => {
-    const source = new DevKeyOverrideCredentialSource("maps-key-123");
-    await expect(source.beginLogin()).resolves.toBeUndefined();
-  });
-});
 
 describe("Route Builder URL detection", () => {
   it("matches https://www.strava.com/maps/* paths", () => {
