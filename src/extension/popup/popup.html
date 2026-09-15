@@ -13,10 +13,6 @@
     </header>
 
     <section class="controls" aria-label="Feature controls">
-      <label class="row">
-        <span>Street View / Pano</span>
-        <input type="checkbox" id="feature-enabled" />
-      </label>
       <fieldset class="row map-click-button">
         <legend>Set Anchor with</legend>
         <div class="segmented" role="radiogroup" aria-label="Map Click Button">
@@ -35,11 +31,27 @@
       </p>
     </section>
 
-    <section class="account" aria-label="Account">
-      <div class="row">
-        <span>Account</span>
-        <span id="account-status" class="muted">Not connected</span>
-      </div>
+    <section class="maps-key" aria-label="Maps Key">
+      <label class="maps-key-label" for="maps-key">Maps Key</label>
+      <input
+        id="maps-key"
+        type="password"
+        autocomplete="off"
+        spellcheck="false"
+        placeholder="Paste your Google Maps JavaScript API key"
+      />
+      <ol class="hint maps-key-steps">
+        <li>Enable the Maps JavaScript API in Google Cloud.</li>
+        <li>Create an API key.</li>
+        <li>Restrict HTTP referrers to <code>https://www.strava.com/*</code>.</li>
+      </ol>
+      <p class="hint">
+        <a
+          href="https://developers.google.com/maps/documentation/javascript/get-api-key"
+          target="_blank"
+          rel="noopener noreferrer"
+        >Google Maps JavaScript API keys</a>
+      </p>
     </section>
 
     <script type="module" src="popup.js"></script>

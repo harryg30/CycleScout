@@ -1,19 +1,10 @@
 import type {
   CoverageStatus,
-  CredentialResult,
   LatLng,
   MapClickButton,
   PanoLayout,
   StreetViewCredential,
 } from "../domain/types.js";
-
-/**
- * Credential source port.
- * Dev Key Override (#8) and Access Service (#11) both implement this.
- */
-export interface CredentialSource {
-  getStreetViewCredentials(): Promise<CredentialResult>;
-}
 
 /**
  * Host Page port — Route Builder enter/leave and Map Click (left or right).
@@ -73,12 +64,13 @@ export interface StreetViewSurface {
 }
 
 export interface SettingsStore {
-  getFeatureEnabled(): Promise<boolean>;
-  setFeatureEnabled(enabled: boolean): Promise<void>;
   getMapClickButton(): Promise<MapClickButton>;
   setMapClickButton(button: MapClickButton): Promise<void>;
+  /** Rider Maps Key for this browser profile; empty string if unset. */
+  getMapsKey(): Promise<string>;
+  setMapsKey(key: string): Promise<void>;
   getPanoLayout(): Promise<PanoLayout | null>;
   setPanoLayout(layout: PanoLayout): Promise<void>;
-  /** Subscribe to feature / Map Click Button changes from Popup or elsewhere. */
+  /** Subscribe to Map Click Button / Maps Key changes from Popup or elsewhere. */
   onSettingsChange(listener: () => void): () => void;
 }

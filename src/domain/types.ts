@@ -20,27 +20,11 @@ export const DEFAULT_PANO_LAYOUT: PanoLayout = {
 };
 
 export type StreetViewCredential = {
-  /** Maps JS API key or short-lived token usable as a Maps key. */
+  /** Rider Maps Key passed to Street View at show time. */
   apiKey: string;
 };
-
-export type CredentialOk = {
-  status: "ok";
-  credential: StreetViewCredential;
-};
-
-export type CredentialDenied = {
-  status: "denied";
-  reason: string;
-};
-
-export type CredentialResult = CredentialOk | CredentialDenied;
 
 export type CoverageStatus = "covered" | "coverage_gap";
 
 /** Which mouse button performs Map Click (sets the Anchor Point). */
 export type MapClickButton = "left" | "right";
-
-export type AccountPlaceholder = "dev_build" | "not_connected";
-
-export type BuildProfile = "dev" | "store";

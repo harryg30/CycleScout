@@ -29,7 +29,7 @@ if (!apiKey) {
 
 const bridgePath = path.join(root, "dist/maps-page-bridge.js");
 if (!fs.existsSync(bridgePath)) {
-  console.error("FAIL: dist/maps-page-bridge.js missing — run npm run build:dev");
+  console.error("FAIL: dist/maps-page-bridge.js missing — run npm run build");
   process.exit(2);
 }
 const bridgeJs = fs.readFileSync(bridgePath, "utf8");

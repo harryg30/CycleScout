@@ -1,30 +1,15 @@
 import type {
   CoverageStatus,
-  CredentialResult,
   LatLng,
   MapClickButton,
   PanoLayout,
   StreetViewCredential,
 } from "../src/domain/types.js";
 import type {
-  CredentialSource,
   HostPage,
   SettingsStore,
   StreetViewSurface,
 } from "../src/ports/index.js";
-
-export class FakeCredentialSource implements CredentialSource {
-  next: CredentialResult = {
-    status: "ok",
-    credential: { apiKey: "test-key" },
-  };
-  calls = 0;
-
-  async getStreetViewCredentials(): Promise<CredentialResult> {
-    this.calls += 1;
-    return this.next;
-  }
-}
 
 export class FakeHostPage implements HostPage {
   private routeBuilder = false;
@@ -95,6 +80,8 @@ export class FakeStreetViewSurface implements StreetViewSurface {
   lastSuccessfulPoint: LatLng | null = null;
   blanked = false;
   autoSnapped = false;
+  /** If set, showAnchor throws this message (rejected Maps Key / load failure). */
+  failShowWith: string | null = null;
 
   private closeListeners = new Set<() => void>();
   private layoutListeners = new Set<(layout: PanoLayout) => void>();
@@ -120,6 +107,9 @@ export class FakeStreetViewSurface implements StreetViewSurface {
     point: LatLng,
     credential: StreetViewCredential,
   ): Promise<CoverageStatus> {
+    if (this.failShowWith) {
+      throw new Error(this.failShowWith);
+    }
     this.shownAnchors.push({ ...point });
     this.lastCredential = credential;
     const key = `${point.lat},${point.lng}`;
@@ -160,22 +150,22 @@ export class FakeStreetViewSurface implements StreetViewSurface {
 }
 
 export class FakeSettingsStore implements SettingsStore {
-  featureEnabled = true;
   mapClickButton: MapClickButton = "right";
+  mapsKey = "test-key";
   panoLayout: PanoLayout | null = null;
   private listeners = new Set<() => void>();
 
-  async getFeatureEnabled(): Promise<boolean> {
-    return this.featureEnabled;
-  }
-
-  async setFeatureEnabled(enabled: boolean): Promise<void> {
-    this.featureEnabled = enabled;
-    this.notify();
-  }
-
   async getMapClickButton(): Promise<MapClickButton> {
     return this.mapClickButton;
+  }
+
+  async getMapsKey(): Promise<string> {
+    return this.mapsKey;
+  }
+
+  async setMapsKey(key: string): Promise<void> {
+    this.mapsKey = key;
+    this.notify();
   }
 
   async setMapClickButton(button: MapClickButton): Promise<void> {

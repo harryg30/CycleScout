@@ -5,9 +5,7 @@
   "description": "Chrome extension: street-level preview for cycling routes",
   "type": "module",
   "scripts": {
-    "build": "node scripts/build.mjs --profile=dev",
-    "build:dev": "node scripts/build.mjs --profile=dev",
-    "build:store": "node scripts/build.mjs --profile=store",
+    "build": "node scripts/build.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"

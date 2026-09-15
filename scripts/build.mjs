@@ -8,77 +8,20 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
 const dist = path.join(root, "dist");
 
-const profileArg = process.argv.find((a) => a.startsWith("--profile="));
-const profile = profileArg?.split("=")[1] === "store" ? "store" : "dev";
-
-function loadEnvFile() {
-  const envPath = path.join(root, ".env");
-  const values = {};
-  if (!fs.existsSync(envPath)) return values;
-  for (const line of fs.readFileSync(envPath, "utf8").split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const eq = trimmed.indexOf("=");
-    if (eq === -1) continue;
-    const key = trimmed.slice(0, eq).trim();
-    let val = trimmed.slice(eq + 1).trim();
-    if (
-      (val.startsWith('"') && val.endsWith('"')) ||
-      (val.startsWith("'") && val.endsWith("'"))
-    ) {
-      val = val.slice(1, -1);
-    }
-    values[key] = val;
-  }
-  return values;
-}
-
-const env = loadEnvFile();
-const mapsKey = profile === "dev" ? env.GOOGLE_MAPS_API_KEY ?? "" : "";
-
-if (profile === "dev" && !mapsKey) {
-  console.warn(
-    "[build] Warning: GOOGLE_MAPS_API_KEY missing from .env — Dev Key Override will deny credentials until set.",
-  );
-}
-
 fs.rmSync(dist, { recursive: true, force: true });
 fs.mkdirSync(dist, { recursive: true });
-
-const define = {
-  __BUILD_PROFILE__: JSON.stringify(profile),
-  __DEV_MAPS_API_KEY__: JSON.stringify(mapsKey),
-};
-
-const credentialActive =
-  profile === "dev"
-    ? path.join(root, "src/adapters/credentials/active.dev.ts")
-    : path.join(root, "src/adapters/credentials/active.store.ts");
-
-const credentialAliasPlugin = {
-  name: "credential-profile-alias",
-  setup(build) {
-    build.onResolve(
-      { filter: /adapters\/credentials\/active(\.ts|\.js)?$/ },
-      () => ({ path: credentialActive }),
-    );
-  },
-};
 
 const shared = {
   bundle: true,
   format: "esm",
   target: "chrome120",
   sourcemap: true,
-  define,
   logLevel: "info",
-  plugins: [credentialAliasPlugin],
 };
 
 await esbuild.build({
   ...shared,
   entryPoints: {
-    background: path.join(root, "src/extension/background.ts"),
     content: path.join(root, "src/extension/content.ts"),
     popup: path.join(root, "src/extension/popup/popup.ts"),
   },
@@ -121,10 +64,6 @@ const manifest = {
     default_popup: "popup.html",
     default_title: "CycleScout",
   },
-  background: {
-    service_worker: "background.js",
-    type: "module",
-  },
   content_scripts: [
     {
       // Isolated world keeps chrome.* + avoids page JS collisions.
@@ -152,4 +91,4 @@ fs.copyFileSync(
   path.join(dist, "content.css"),
 );
 
-console.log(`[build] profile=${profile} → ${dist}`);
+console.log(`[build] → ${dist}`);

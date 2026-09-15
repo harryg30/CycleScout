@@ -1,5 +1,6 @@
 import type { LatLng } from "../../domain/types.js";
 import type { MapClickButton } from "../../domain/types.js";
+import { extensionResourceUrl } from "../../extension/extension-context.js";
 import type { HostPage } from "../../ports/index.js";
 
 /** Product host: https://www.strava.com/maps/* only. */
@@ -636,7 +637,12 @@ export class StravaHostPage implements HostPage {
 
         const script = document.createElement("script");
         script.id = "ssp-host-mre-bridge";
-        script.src = chrome.runtime.getURL("host-mre-bridge.js");
+        const url = extensionResourceUrl("host-mre-bridge.js");
+        if (!url) {
+          finish(new Error("Extension context invalidated."));
+          return;
+        }
+        script.src = url;
         script.onerror = () =>
           finish(new Error("Failed to inject MRE host bridge"));
         (document.head || document.documentElement).appendChild(script);

@@ -25,23 +25,17 @@ import { StravaHostPage } from "../src/adapters/host-page/strava-host-page.ts";
 import { ExtensionApplication } from "../src/core/extension-application.ts";
 
 class MemSettings {
-  featureEnabled = true;
   mapClickButton: "left" | "right" = "right";
+  mapsKey = "test";
   listeners = new Set<() => void>();
-  async getFeatureEnabled() { return this.featureEnabled; }
-  async setFeatureEnabled(v: boolean) { this.featureEnabled = v; this.notify(); }
   async getMapClickButton() { return this.mapClickButton; }
   async setMapClickButton(b: "left" | "right") { this.mapClickButton = b; this.notify(); }
+  async getMapsKey() { return this.mapsKey; }
+  async setMapsKey(key: string) { this.mapsKey = key; this.notify(); }
   async getPanoLayout() { return null; }
   async setPanoLayout() {}
   onSettingsChange(l: () => void) { this.listeners.add(l); return () => this.listeners.delete(l); }
   notify() { for (const l of this.listeners) l(); }
-}
-
-class MemCreds {
-  async getStreetViewCredentials() {
-    return { status: "ok" as const, credential: { apiKey: "test" } };
-  }
 }
 
 class MemSurface {
@@ -72,7 +66,6 @@ window.__boot = async () => {
   const streetView = new MemSurface();
   const app = new ExtensionApplication({
     hostPage: host,
-    credentials: new MemCreds(),
     streetView,
     settings,
   });

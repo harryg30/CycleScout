@@ -37,7 +37,7 @@ body {
 }
 
 .controls,
-.account {
+.maps-key {
   background: color-mix(in srgb, var(--panel) 88%, transparent);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -57,10 +57,6 @@ body {
   border-top: 1px solid var(--border);
 }
 
-label.row {
-  cursor: pointer;
-}
-
 .hint {
   margin: 4px 0 0;
   color: var(--muted);
@@ -72,10 +68,29 @@ label.row {
   color: var(--muted);
 }
 
-input[type="checkbox"] {
-  accent-color: var(--accent);
-  width: 16px;
-  height: 16px;
+.maps-key-label {
+  display: block;
+  padding: 6px 0;
+}
+
+.maps-key input {
+  width: 100%;
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--panel) 70%, #000);
+  color: var(--text);
+  font: inherit;
+}
+
+.maps-key-steps {
+  margin: 4px 0 8px;
+  padding-left: 18px;
+}
+
+.maps-key a {
+  color: color-mix(in srgb, var(--accent) 70%, var(--text));
 }
 
 fieldset.map-click-button {
