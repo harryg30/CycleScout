@@ -147,7 +147,7 @@ import {
     );
 
     if (resolved.ok && resolved.point) {
-      console.info("[Strava Streets] Map Click →", resolved.point, resolved.tried);
+      console.info("[CycleScout] Map Click →", resolved.point, resolved.tried);
       return resolved;
     }
 
