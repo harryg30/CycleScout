@@ -10,15 +10,15 @@ import { ExtensionApplication } from "../core/extension-application.js";
  */
 function showBootError(err: unknown): void {
   const message = err instanceof Error ? err.message : String(err);
-  console.error("[Strava Streets] content script failed:", err);
+  console.error("[CycleScout] content script failed:", err);
   const existing = document.getElementById("ssp-boot-error");
   if (existing) {
-    existing.textContent = `Strava Streets error: ${message}`;
+    existing.textContent = `CycleScout error: ${message}`;
     return;
   }
   const el = document.createElement("div");
   el.id = "ssp-boot-error";
-  el.textContent = `Strava Streets error: ${message}`;
+  el.textContent = `CycleScout error: ${message}`;
   el.style.cssText = [
     "position:fixed",
     "z-index:2147483647",

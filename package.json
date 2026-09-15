@@ -1,8 +1,8 @@
 {
-  "name": "strava-streets-plugin",
+  "name": "cycle-scout",
   "version": "0.1.0",
   "private": true,
-  "description": "Chrome extension: Street View beside Strava Route Builder",
+  "description": "Chrome extension: street-level preview for cycling routes",
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs --profile=dev",

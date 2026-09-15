@@ -1,6 +1,6 @@
-# Strava Streets Plugin
+# CycleScout
 
-Chrome Manifest V3 extension that shows a view-only Google Street View **Pano Window** on Strava’s **Route Builder**. Settings live in the **Extension Popup**. Domain language: [`CONTEXT.md`](CONTEXT.md). Design decisions: [`docs/adr/`](docs/adr/).
+Chrome Manifest V3 extension: street-level preview for cycling routes. A view-only **Pano Window** on the **Route Builder** (currently Strava at `https://www.strava.com/maps/*`). Settings live in the **Extension Popup**. Domain language: [`CONTEXT.md`](CONTEXT.md). Design decisions: [`docs/adr/`](docs/adr/).
 
 ## Status
 

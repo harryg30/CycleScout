@@ -111,15 +111,15 @@ fs.copyFileSync(
 
 const manifest = {
   manifest_version: 3,
-  name: "Strava Streets",
+  name: "CycleScout",
   version: "0.1.0",
   description:
-    "Street View beside Strava’s Route Builder — view-only Pano Window for route context.",
+    "Street-level preview for cycling routes — view-only Pano Window on the Route Builder.",
   permissions: ["storage"],
   host_permissions: ["https://www.strava.com/maps/*"],
   action: {
     default_popup: "popup.html",
-    default_title: "Strava Streets",
+    default_title: "CycleScout",
   },
   background: {
     service_worker: "background.js",

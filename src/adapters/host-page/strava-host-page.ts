@@ -391,9 +391,9 @@ export class StravaHostPage implements HostPage {
         methods,
         tried,
       };
-      console.info("[Strava Streets] MRE screen→lat/lng miss", payload);
+      console.info("[CycleScout] MRE screen→lat/lng miss", payload);
       console.info(
-        "[Strava Streets] MRE methods (copy):\n" + methods.join("\n"),
+        "[CycleScout] MRE methods (copy):\n" + methods.join("\n"),
       );
       this.emitMiss(payload.error);
     } catch (err) {
