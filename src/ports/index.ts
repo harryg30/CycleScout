@@ -1,6 +1,7 @@
 import type {
   CoverageStatus,
   LatLng,
+  MapBox,
   MapClickButton,
   PanoLayout,
   StreetViewCredential,
@@ -22,7 +23,7 @@ export interface HostPage {
   ): () => void;
   /**
    * Fired when the rider clicks the map but lat/lng could not be resolved
-   * (e.g. Strava MRE API shape changed). Optional for fakes/tests.
+   * (e.g. Strava MRE or Ride with GPS MapLibre API shape changed). Optional for fakes/tests.
    */
   onMapClickMiss?(listener: (reason: string) => void): () => void;
   /**
@@ -35,6 +36,11 @@ export interface HostPage {
    * Pass null to remove (tear-down / leave Route Builder).
    */
   setAnchorMarker(point: LatLng | null): void;
+  /**
+   * Client rect of the Route Builder map. Used to park the Pano Window
+   * in the map's bottom-right, not the full browser window.
+   */
+  getMapBounds(): MapBox | null;
 }
 
 /**

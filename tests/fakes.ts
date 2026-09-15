@@ -1,6 +1,7 @@
 import type {
   CoverageStatus,
   LatLng,
+  MapBox,
   MapClickButton,
   PanoLayout,
   StreetViewCredential,
@@ -20,6 +21,12 @@ export class FakeHostPage implements HostPage {
   mapClickSubscriptionCount = 0;
   mapClickButton: MapClickButton = "right";
   anchorMarker: LatLng | null = null;
+  mapBounds: MapBox | null = {
+    left: 400,
+    top: 80,
+    width: 800,
+    height: 640,
+  };
 
   setRouteBuilder(active: boolean): void {
     if (this.routeBuilder === active) return;
@@ -37,6 +44,10 @@ export class FakeHostPage implements HostPage {
 
   setAnchorMarker(point: LatLng | null): void {
     this.anchorMarker = point ? { ...point } : null;
+  }
+
+  getMapBounds(): MapBox | null {
+    return this.mapBounds;
   }
 
   isRouteBuilder(): boolean {

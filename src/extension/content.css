@@ -1,4 +1,4 @@
-/* Pano Window overlay styles — injected on Strava pages */
+/* Pano Window overlay styles — injected on Route Builder pages */
 .ssp-pano {
   position: fixed;
   z-index: 2147483646;
@@ -23,18 +23,16 @@
   background: #242424;
   border-bottom: 1px solid #3a3a3a;
   user-select: none;
+  cursor: grab;
+  touch-action: none;
   flex: 0 0 auto;
 }
 
 .ssp-pano__title {
   flex: 1;
-  cursor: grab;
   font-weight: 600;
   letter-spacing: 0.02em;
-}
-
-.ssp-pano__title:active {
-  cursor: grabbing;
+  pointer-events: none;
 }
 
 .ssp-pano__close {

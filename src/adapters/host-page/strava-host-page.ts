@@ -1,5 +1,4 @@
-import type { LatLng } from "../../domain/types.js";
-import type { MapClickButton } from "../../domain/types.js";
+import type { LatLng, MapBox, MapClickButton } from "../../domain/types.js";
 import { extensionResourceUrl } from "../../extension/extension-context.js";
 import type { HostPage } from "../../ports/index.js";
 
@@ -130,6 +129,19 @@ export class StravaHostPage implements HostPage {
 
   setMapClickButton(button: MapClickButton): void {
     this.mapClickButton = button;
+  }
+
+  getMapBounds(): MapBox | null {
+    const root = this.mapRoot ?? findMapRoot();
+    if (!root) return null;
+    const box = root.getBoundingClientRect();
+    if (box.width < 1 || box.height < 1) return null;
+    return {
+      left: box.left,
+      top: box.top,
+      width: box.width,
+      height: box.height,
+    };
   }
 
   setAnchorMarker(point: LatLng | null): void {

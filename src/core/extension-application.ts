@@ -1,4 +1,4 @@
-import { DEFAULT_PANO_LAYOUT } from "../domain/types.js";
+import { defaultPanoLayoutForMap } from "../domain/types.js";
 import type { LatLng, MapClickButton, PanoLayout } from "../domain/types.js";
 import { isExtensionContextInvalidatedError } from "../extension/extension-context.js";
 import type {
@@ -165,8 +165,18 @@ export class ExtensionApplication {
 
   private async ensurePanoMounted(): Promise<void> {
     if (this.streetView.isMounted()) return;
-    const stored = await this.settings.getPanoLayout();
-    const layout: PanoLayout = stored ?? DEFAULT_PANO_LAYOUT;
+    const stored = rememberedPanoLayout(await this.settings.getPanoLayout());
+    const map = this.hostPage.getMapBounds();
+    const layout: PanoLayout =
+      stored ??
+      (map
+        ? defaultPanoLayoutForMap(map)
+        : defaultPanoLayoutForMap({
+            left: 0,
+            top: 0,
+            width: globalThis.window?.innerWidth ?? 1280,
+            height: globalThis.window?.innerHeight ?? 800,
+          }));
     this.streetView.mount(layout);
     this.streetView.setCoverageGapNotice(this.coverageGapActive);
   }
@@ -211,6 +221,20 @@ export class ExtensionApplication {
       this.streetView.setStatusMessage(mapsKeySetupFailureMessage(err));
     }
   }
+}
+
+/** Prior top-left default — treat as unset so first-show is bottom-right. */
+function rememberedPanoLayout(stored: PanoLayout | null): PanoLayout | null {
+  if (!stored) return null;
+  if (
+    stored.x === 24 &&
+    stored.y === 80 &&
+    stored.width === 420 &&
+    stored.height === 320
+  ) {
+    return null;
+  }
+  return stored;
 }
 
 function mapsKeySetupFailureMessage(err: unknown): string {

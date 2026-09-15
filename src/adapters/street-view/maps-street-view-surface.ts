@@ -56,18 +56,22 @@ export class MapsStreetViewSurface implements StreetViewSurface {
   private reqSeq = 0;
 
   mount(layout: PanoLayout): void {
-    if (this.root) return;
+    if (this.root?.isConnected) return;
+    if (this.root) {
+      this.root.remove();
+      this.root = null;
+    }
     this.layout = { ...layout };
     const root = document.createElement("div");
     root.id = ROOT_ID;
     root.className = "ssp-pano";
     root.setAttribute("role", "complementary");
     root.setAttribute("aria-label", "Street View Pano Window");
-    applyLayout(root, layout);
+    applyPanoWindowLayout(root, layout);
 
     root.innerHTML = `
-      <div class="ssp-pano__chrome">
-        <div class="ssp-pano__title" data-drag-handle>Street View</div>
+      <div class="ssp-pano__chrome" data-drag-handle>
+        <div class="ssp-pano__title">Street View</div>
         <button type="button" class="ssp-pano__close" aria-label="Close Pano Window">×</button>
       </div>
       <div class="ssp-pano__body">
@@ -78,11 +82,13 @@ export class MapsStreetViewSurface implements StreetViewSurface {
       <div class="ssp-pano__resize" aria-hidden="true"></div>
     `;
 
-    document.documentElement.appendChild(root);
+    chromeOverlayParent(document).appendChild(root);
+    showChromeOverlay(root);
     this.root = root;
     this.panoEl = root.querySelector(".ssp-pano__viewport");
     this.noticeEl = root.querySelector(".ssp-pano__notice");
     this.statusEl = root.querySelector(".ssp-pano__status");
+    applyPanoInnerLayout(root);
 
     root.querySelector(".ssp-pano__close")?.addEventListener("click", () => {
       for (const l of this.closeListeners) l();
@@ -91,7 +97,6 @@ export class MapsStreetViewSurface implements StreetViewSurface {
     this.wireDrag(root);
     this.wireResize(root);
     this.ensureMessageHandler();
-    // Inject Maps bridge lazily on showAnchor — never block chrome mount.
   }
 
   unmount(): void {
@@ -99,6 +104,12 @@ export class MapsStreetViewSurface implements StreetViewSurface {
     void this.callBridge({ type: "destroyPanorama" }).catch(() => {
       /* bridge may already be gone */
     });
+    this.endDrag();
+    try {
+      this.root.hidePopover?.();
+    } catch {
+      /* already closed */
+    }
     this.root.remove();
     this.root = null;
     this.panoEl = null;
@@ -107,12 +118,12 @@ export class MapsStreetViewSurface implements StreetViewSurface {
   }
 
   isMounted(): boolean {
-    return this.root !== null;
+    return this.root !== null && this.root.isConnected;
   }
 
   setLayout(layout: PanoLayout): void {
     this.layout = { ...layout };
-    if (this.root) applyLayout(this.root, layout);
+    if (this.root) applyPanoWindowLayout(this.root, layout);
   }
 
   async showAnchor(
@@ -278,38 +289,54 @@ export class MapsStreetViewSurface implements StreetViewSurface {
     for (const l of this.layoutListeners) l({ ...this.layout });
   }
 
+  private endDrag(): void {
+    window.removeEventListener("pointermove", this.onDragMove);
+    window.removeEventListener("pointerup", this.onDragUp);
+    if (!this.dragState) return;
+    this.dragState = null;
+    this.emitLayout();
+  }
+
+  private onDragMove = (e: PointerEvent): void => {
+    if (!this.dragState || !this.layout || !this.root) return;
+    this.layout = nextPanoLayoutFromDrag(
+      {
+        x: this.dragState.origX,
+        y: this.dragState.origY,
+        width: this.layout.width,
+        height: this.layout.height,
+      },
+      { x: this.dragState.startX, y: this.dragState.startY },
+      { x: e.clientX, y: e.clientY },
+    );
+    applyPanoWindowLayout(this.root, this.layout);
+  };
+
+  private onDragUp = (): void => {
+    this.endDrag();
+  };
+
   private wireDrag(root: HTMLElement): void {
     const handle = root.querySelector("[data-drag-handle]");
     if (!(handle instanceof HTMLElement)) return;
 
     handle.addEventListener("pointerdown", (e) => {
       if (!this.layout) return;
+      if (e.button !== 0) return;
+      if (e.target instanceof Element && e.target.closest(".ssp-pano__close")) {
+        return;
+      }
       e.preventDefault();
-      handle.setPointerCapture(e.pointerId);
+      e.stopPropagation();
+      this.endDrag();
       this.dragState = {
         startX: e.clientX,
         startY: e.clientY,
         origX: this.layout.x,
         origY: this.layout.y,
       };
-    });
-
-    handle.addEventListener("pointermove", (e) => {
-      if (!this.dragState || !this.layout || !this.root) return;
-      const dx = e.clientX - this.dragState.startX;
-      const dy = e.clientY - this.dragState.startY;
-      this.layout = {
-        ...this.layout,
-        x: Math.max(0, this.dragState.origX + dx),
-        y: Math.max(0, this.dragState.origY + dy),
-      };
-      applyLayout(this.root, this.layout);
-    });
-
-    handle.addEventListener("pointerup", () => {
-      if (!this.dragState) return;
-      this.dragState = null;
-      this.emitLayout();
+      window.addEventListener("pointermove", this.onDragMove);
+      window.addEventListener("pointerup", this.onDragUp);
     });
   }
 
@@ -324,42 +351,124 @@ export class MapsStreetViewSurface implements StreetViewSurface {
       origH: number;
     } | null = null;
 
+    const onMove = (e: PointerEvent) => {
+      if (!resizing || !this.layout || !this.root) return;
+      this.layout = {
+        ...this.layout,
+        width: Math.max(280, resizing.origW + (e.clientX - resizing.startX)),
+        height: Math.max(200, resizing.origH + (e.clientY - resizing.startY)),
+      };
+      applyPanoWindowLayout(this.root, this.layout);
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      if (!resizing) return;
+      resizing = null;
+      this.emitLayout();
+    };
+
     handle.addEventListener("pointerdown", (e) => {
       if (!this.layout) return;
       e.preventDefault();
       e.stopPropagation();
-      handle.setPointerCapture(e.pointerId);
       resizing = {
         startX: e.clientX,
         startY: e.clientY,
         origW: this.layout.width,
         origH: this.layout.height,
       };
-    });
-
-    handle.addEventListener("pointermove", (e) => {
-      if (!resizing || !this.layout || !this.root) return;
-      const dw = e.clientX - resizing.startX;
-      const dh = e.clientY - resizing.startY;
-      this.layout = {
-        ...this.layout,
-        width: Math.max(280, resizing.origW + dw),
-        height: Math.max(200, resizing.origH + dh),
-      };
-      applyLayout(this.root, this.layout);
-    });
-
-    handle.addEventListener("pointerup", () => {
-      if (!resizing) return;
-      resizing = null;
-      this.emitLayout();
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
     });
   }
 }
 
-function applyLayout(el: HTMLElement, layout: PanoLayout): void {
+export function nextPanoLayoutFromDrag(
+  orig: PanoLayout,
+  pointerStart: { x: number; y: number },
+  pointerNow: { x: number; y: number },
+): PanoLayout {
+  return {
+    ...orig,
+    x: Math.max(0, orig.x + pointerNow.x - pointerStart.x),
+    y: Math.max(0, orig.y + pointerNow.y - pointerStart.y),
+  };
+}
+
+export function applyPanoWindowLayout(
+  el: HTMLElement,
+  layout: PanoLayout,
+): void {
+  el.style.position = "fixed";
+  el.style.zIndex = "2147483646";
+  el.style.display = "flex";
+  el.style.flexDirection = "column";
   el.style.left = `${layout.x}px`;
   el.style.top = `${layout.y}px`;
   el.style.width = `${layout.width}px`;
   el.style.height = `${layout.height}px`;
+  el.style.minWidth = "280px";
+  el.style.minHeight = "200px";
+  el.style.background = "#1a1a1a";
+  el.style.border = "1px solid #3a3a3a";
+  el.style.color = "#f2f2f2";
+  el.style.overflow = "hidden";
+  el.style.boxSizing = "border-box";
+  el.style.setProperty?.("inset", "auto", "important");
+  el.style.setProperty?.("margin", "0", "important");
+  el.style.setProperty?.("position", "fixed", "important");
+}
+
+function applyPanoInnerLayout(root: HTMLElement): void {
+  const chrome = root.querySelector(".ssp-pano__chrome");
+  if (chrome instanceof HTMLElement) {
+    chrome.style.cssText = [
+      "display:flex",
+      "align-items:center",
+      "flex:0 0 auto",
+      "padding:6px 8px",
+      "background:#242424",
+      "border-bottom:1px solid #3a3a3a",
+      "cursor:grab",
+      "touch-action:none",
+      "user-select:none",
+    ].join(";");
+  }
+  const title = root.querySelector(".ssp-pano__title");
+  if (title instanceof HTMLElement) {
+    title.style.flex = "1";
+    title.style.fontWeight = "600";
+    title.style.pointerEvents = "none";
+  }
+  const close = root.querySelector(".ssp-pano__close");
+  if (close instanceof HTMLElement) {
+    close.style.cssText =
+      "border:none;background:transparent;color:#ccc;font-size:18px;width:28px;height:28px;cursor:pointer";
+  }
+  const body = root.querySelector(".ssp-pano__body");
+  if (body instanceof HTMLElement) {
+    body.style.cssText = "position:relative;flex:1 1 auto;min-height:0";
+  }
+  const viewport = root.querySelector(".ssp-pano__viewport");
+  if (viewport instanceof HTMLElement) {
+    viewport.style.cssText = "position:absolute;inset:0;background:#111";
+  }
+}
+
+function chromeOverlayParent(doc: {
+  body: HTMLElement | null;
+  documentElement: HTMLElement;
+}): HTMLElement {
+  return doc.body ?? doc.documentElement;
+}
+
+function showChromeOverlay(el: HTMLElement): void {
+  if (typeof el.showPopover !== "function") return;
+  el.setAttribute("popover", "manual");
+  try {
+    el.showPopover();
+  } catch {
+    el.removeAttribute("popover");
+  }
 }

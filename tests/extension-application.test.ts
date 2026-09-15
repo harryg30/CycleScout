@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { ExtensionApplication } from "../src/core/extension-application.js";
-import { DEFAULT_PANO_LAYOUT } from "../src/domain/types.js";
+import { defaultPanoLayoutForMap } from "../src/domain/types.js";
 import {
   FakeHostPage,
   FakeSettingsStore,
@@ -48,10 +48,31 @@ describe("ExtensionApplication seams", () => {
     expect(host.mapClickSubscriptionCount).toBe(1);
   });
 
-  it("uses default layout when none stored", async () => {
+  it("uses bottom-right of the map when no layout is stored", async () => {
     host.setRouteBuilder(true);
     await flush();
-    expect(streetView.layout).toEqual(DEFAULT_PANO_LAYOUT);
+    expect(streetView.layout).toEqual(
+      defaultPanoLayoutForMap({
+        left: 400,
+        top: 80,
+        width: 800,
+        height: 640,
+      }),
+    );
+  });
+
+  it("treats the old top-left default as unset so first-show is map bottom-right", async () => {
+    settings.panoLayout = { x: 24, y: 80, width: 420, height: 320 };
+    host.setRouteBuilder(true);
+    await flush();
+    expect(streetView.layout).toEqual(
+      defaultPanoLayoutForMap({
+        left: 400,
+        top: 80,
+        width: 800,
+        height: 640,
+      }),
+    );
   });
 
   it("leaving Route Builder tears down Pano and detaches Map Click", async () => {
