@@ -1,8 +1,9 @@
-import type {
-  CoverageStatus,
-  LatLng,
-  PanoLayout,
-  StreetViewCredential,
+import {
+  clampPanoLayoutToViewport,
+  type CoverageStatus,
+  type LatLng,
+  type PanoLayout,
+  type StreetViewCredential,
 } from "../../domain/types.js";
 import { extensionResourceUrl } from "../../extension/extension-context.js";
 import type { StreetViewSurface } from "../../ports/index.js";
@@ -53,6 +54,9 @@ export class MapsStreetViewSurface implements StreetViewSurface {
     }
   >();
   private messageHandler: ((event: MessageEvent) => void) | null = null;
+  private topKeeper: MutationObserver | null = null;
+  private topPulse: ReturnType<typeof setInterval> | null = null;
+  private overlayUnmounting = false;
   private reqSeq = 0;
 
   mount(layout: PanoLayout): void {
@@ -61,17 +65,18 @@ export class MapsStreetViewSurface implements StreetViewSurface {
       this.root.remove();
       this.root = null;
     }
-    this.layout = { ...layout };
+    this.overlayUnmounting = false;
+    this.layout = clampPanoLayoutToViewport(layout, viewportSize());
     const root = document.createElement("div");
     root.id = ROOT_ID;
     root.className = "ssp-pano";
     root.setAttribute("role", "complementary");
     root.setAttribute("aria-label", "Street View Pano Window");
-    applyPanoWindowLayout(root, layout);
+    applyPanoWindowLayout(root, this.layout);
 
     root.innerHTML = `
-      <div class="ssp-pano__chrome" data-drag-handle>
-        <div class="ssp-pano__title">Street View</div>
+      <div class="ssp-pano__chrome">
+        <div class="ssp-pano__title" data-drag-handle>Street View</div>
         <button type="button" class="ssp-pano__close" aria-label="Close Pano Window">×</button>
       </div>
       <div class="ssp-pano__body">
@@ -83,8 +88,8 @@ export class MapsStreetViewSurface implements StreetViewSurface {
     `;
 
     chromeOverlayParent(document).appendChild(root);
-    showChromeOverlay(root);
     this.root = root;
+    this.watchOverlayOnTop(root);
     this.panoEl = root.querySelector(".ssp-pano__viewport");
     this.noticeEl = root.querySelector(".ssp-pano__notice");
     this.statusEl = root.querySelector(".ssp-pano__status");
@@ -105,6 +110,13 @@ export class MapsStreetViewSurface implements StreetViewSurface {
       /* bridge may already be gone */
     });
     this.endDrag();
+    this.overlayUnmounting = true;
+    this.topKeeper?.disconnect();
+    this.topKeeper = null;
+    if (this.topPulse !== null) {
+      clearInterval(this.topPulse);
+      this.topPulse = null;
+    }
     try {
       this.root.hidePopover?.();
     } catch {
@@ -115,6 +127,7 @@ export class MapsStreetViewSurface implements StreetViewSurface {
     this.panoEl = null;
     this.noticeEl = null;
     this.statusEl = null;
+    this.overlayUnmounting = false;
   }
 
   isMounted(): boolean {
@@ -122,8 +135,10 @@ export class MapsStreetViewSurface implements StreetViewSurface {
   }
 
   setLayout(layout: PanoLayout): void {
-    this.layout = { ...layout };
-    if (this.root) applyPanoWindowLayout(this.root, layout);
+    this.layout = clampPanoLayoutToViewport(layout, viewportSize());
+    if (this.root) {
+      promoteChromeOverlay(this.root, this.layout);
+    }
   }
 
   async showAnchor(
@@ -145,6 +160,10 @@ export class MapsStreetViewSurface implements StreetViewSurface {
 
     if (!response.ok) {
       throw new Error(response.error ?? "Street View bridge failed");
+    }
+
+    if (this.root && this.layout) {
+      promoteChromeOverlay(this.root, this.layout);
     }
 
     return response.coverage === "covered" ? "covered" : "coverage_gap";
@@ -290,53 +309,66 @@ export class MapsStreetViewSurface implements StreetViewSurface {
   }
 
   private endDrag(): void {
-    window.removeEventListener("pointermove", this.onDragMove);
-    window.removeEventListener("pointerup", this.onDragUp);
     if (!this.dragState) return;
     this.dragState = null;
     this.emitLayout();
   }
 
-  private onDragMove = (e: PointerEvent): void => {
-    if (!this.dragState || !this.layout || !this.root) return;
-    this.layout = nextPanoLayoutFromDrag(
-      {
-        x: this.dragState.origX,
-        y: this.dragState.origY,
-        width: this.layout.width,
-        height: this.layout.height,
-      },
-      { x: this.dragState.startX, y: this.dragState.startY },
-      { x: e.clientX, y: e.clientY },
-    );
-    applyPanoWindowLayout(this.root, this.layout);
-  };
-
-  private onDragUp = (): void => {
-    this.endDrag();
-  };
+  /** Keep the overlay in the top layer and last under <html>. */
+  private watchOverlayOnTop(el: HTMLElement): void {
+    this.topKeeper?.disconnect();
+    const place = () => {
+      if (this.overlayUnmounting || !el.isConnected || !this.layout) return;
+      promoteChromeOverlay(el, this.layout);
+    };
+    place();
+    el.addEventListener("toggle", () => {
+      if (this.overlayUnmounting) return;
+      if (!el.matches(":popover-open")) queueMicrotask(place);
+    });
+    this.topPulse = setInterval(place, 250);
+    if (typeof MutationObserver !== "function") return;
+    this.topKeeper = new MutationObserver(place);
+    this.topKeeper.observe(chromeOverlayParent(document), { childList: true });
+  }
 
   private wireDrag(root: HTMLElement): void {
-    const handle = root.querySelector("[data-drag-handle]");
+    const handle = root.querySelector(".ssp-pano__title");
     if (!(handle instanceof HTMLElement)) return;
 
     handle.addEventListener("pointerdown", (e) => {
       if (!this.layout) return;
       if (e.button !== 0) return;
-      if (e.target instanceof Element && e.target.closest(".ssp-pano__close")) {
-        return;
-      }
       e.preventDefault();
-      e.stopPropagation();
-      this.endDrag();
+      handle.setPointerCapture(e.pointerId);
       this.dragState = {
         startX: e.clientX,
         startY: e.clientY,
         origX: this.layout.x,
         origY: this.layout.y,
       };
-      window.addEventListener("pointermove", this.onDragMove);
-      window.addEventListener("pointerup", this.onDragUp);
+    });
+
+    handle.addEventListener("pointermove", (e) => {
+      if (!this.dragState || !this.layout || !this.root) return;
+      this.layout = clampPanoLayoutToViewport(
+        nextPanoLayoutFromDrag(
+          {
+            x: this.dragState.origX,
+            y: this.dragState.origY,
+            width: this.layout.width,
+            height: this.layout.height,
+          },
+          { x: this.dragState.startX, y: this.dragState.startY },
+          { x: e.clientX, y: e.clientY },
+        ),
+        viewportSize(),
+      );
+      applyPanoWindowLayout(this.root, this.layout);
+    });
+
+    handle.addEventListener("pointerup", () => {
+      this.endDrag();
     });
   }
 
@@ -351,37 +383,66 @@ export class MapsStreetViewSurface implements StreetViewSurface {
       origH: number;
     } | null = null;
 
-    const onMove = (e: PointerEvent) => {
-      if (!resizing || !this.layout || !this.root) return;
-      this.layout = {
-        ...this.layout,
-        width: Math.max(280, resizing.origW + (e.clientX - resizing.startX)),
-        height: Math.max(200, resizing.origH + (e.clientY - resizing.startY)),
-      };
-      applyPanoWindowLayout(this.root, this.layout);
-    };
-    const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      if (!resizing) return;
-      resizing = null;
-      this.emitLayout();
-    };
-
     handle.addEventListener("pointerdown", (e) => {
       if (!this.layout) return;
       e.preventDefault();
       e.stopPropagation();
+      handle.setPointerCapture(e.pointerId);
       resizing = {
         startX: e.clientX,
         startY: e.clientY,
         origW: this.layout.width,
         origH: this.layout.height,
       };
-      window.addEventListener("pointermove", onMove);
-      window.addEventListener("pointerup", onUp);
+    });
+
+    handle.addEventListener("pointermove", (e) => {
+      if (!resizing || !this.layout || !this.root) return;
+      this.layout = clampPanoLayoutToViewport(
+        nextPanoLayoutFromResize(
+          {
+            x: this.layout.x,
+            y: this.layout.y,
+            width: resizing.origW,
+            height: resizing.origH,
+          },
+          { x: resizing.startX, y: resizing.startY },
+          { x: e.clientX, y: e.clientY },
+        ),
+        viewportSize(),
+      );
+      applyPanoWindowLayout(this.root, this.layout);
+    });
+
+    handle.addEventListener("pointerup", () => {
+      if (!resizing) return;
+      resizing = null;
+      this.emitLayout();
     });
   }
+}
+
+export function isPanoDragHandleTarget(target: unknown): boolean {
+  const node = closestHost(target);
+  if (!node) return false;
+  if (node.closest(".ssp-pano__close")) return false;
+  return Boolean(node.closest("[data-drag-handle]"));
+}
+
+function closestHost(
+  target: unknown,
+): { closest: (selector: string) => unknown } | null {
+  if (!target || typeof target !== "object") return null;
+  const obj = target as {
+    closest?: (selector: string) => unknown;
+    parentElement?: { closest?: (selector: string) => unknown } | null;
+  };
+  if (typeof obj.closest === "function")
+    return obj as { closest: (s: string) => unknown };
+  const parent = obj.parentElement;
+  if (parent && typeof parent.closest === "function")
+    return parent as { closest: (s: string) => unknown };
+  return null;
 }
 
 export function nextPanoLayoutFromDrag(
@@ -396,18 +457,24 @@ export function nextPanoLayoutFromDrag(
   };
 }
 
+export function nextPanoLayoutFromResize(
+  orig: PanoLayout,
+  pointerStart: { x: number; y: number },
+  pointerNow: { x: number; y: number },
+): PanoLayout {
+  return {
+    ...orig,
+    width: Math.max(280, orig.width + pointerNow.x - pointerStart.x),
+    height: Math.max(200, orig.height + pointerNow.y - pointerStart.y),
+  };
+}
+
 export function applyPanoWindowLayout(
   el: HTMLElement,
   layout: PanoLayout,
 ): void {
-  el.style.position = "fixed";
-  el.style.zIndex = "2147483646";
-  el.style.display = "flex";
+  el.style.zIndex = "2147483647";
   el.style.flexDirection = "column";
-  el.style.left = `${layout.x}px`;
-  el.style.top = `${layout.y}px`;
-  el.style.width = `${layout.width}px`;
-  el.style.height = `${layout.height}px`;
   el.style.minWidth = "280px";
   el.style.minHeight = "200px";
   el.style.background = "#1a1a1a";
@@ -415,9 +482,24 @@ export function applyPanoWindowLayout(
   el.style.color = "#f2f2f2";
   el.style.overflow = "hidden";
   el.style.boxSizing = "border-box";
-  el.style.setProperty?.("inset", "auto", "important");
-  el.style.setProperty?.("margin", "0", "important");
-  el.style.setProperty?.("position", "fixed", "important");
+  // Do not use the inset shorthand — it wipes left/top and pins the window.
+  setImportant(el, "position", "fixed");
+  setImportant(el, "margin", "0");
+  setImportant(el, "right", "auto");
+  setImportant(el, "bottom", "auto");
+  setImportant(el, "left", `${layout.x}px`);
+  setImportant(el, "top", `${layout.y}px`);
+  setImportant(el, "width", `${layout.width}px`);
+  setImportant(el, "height", `${layout.height}px`);
+}
+
+function setImportant(el: HTMLElement, name: string, value: string): void {
+  if (typeof el.style.setProperty === "function") {
+    el.style.setProperty(name, value, "important");
+    return;
+  }
+  const camel = name.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+  (el.style as unknown as Record<string, string>)[camel] = value;
 }
 
 function applyPanoInnerLayout(root: HTMLElement): void {
@@ -427,19 +509,22 @@ function applyPanoInnerLayout(root: HTMLElement): void {
       "display:flex",
       "align-items:center",
       "flex:0 0 auto",
-      "padding:6px 8px",
+      "padding:10px 12px",
       "background:#242424",
       "border-bottom:1px solid #3a3a3a",
       "cursor:grab",
       "touch-action:none",
       "user-select:none",
+      "position:relative",
+      "z-index:4",
     ].join(";");
   }
   const title = root.querySelector(".ssp-pano__title");
   if (title instanceof HTMLElement) {
     title.style.flex = "1";
     title.style.fontWeight = "600";
-    title.style.pointerEvents = "none";
+    title.style.cursor = "grab";
+    title.style.pointerEvents = "auto";
   }
   const close = root.querySelector(".ssp-pano__close");
   if (close instanceof HTMLElement) {
@@ -454,21 +539,56 @@ function applyPanoInnerLayout(root: HTMLElement): void {
   if (viewport instanceof HTMLElement) {
     viewport.style.cssText = "position:absolute;inset:0;background:#111";
   }
+  const resize = root.querySelector(".ssp-pano__resize");
+  if (resize instanceof HTMLElement) {
+    resize.style.cssText = [
+      "position:absolute",
+      "right:0",
+      "bottom:0",
+      "width:16px",
+      "height:16px",
+      "cursor:nwse-resize",
+      "touch-action:none",
+      "z-index:5",
+    ].join(";");
+  }
+}
+
+function viewportSize(): { width: number; height: number } {
+  return {
+    width: globalThis.window?.innerWidth ?? 1280,
+    height: globalThis.window?.innerHeight ?? 800,
+  };
 }
 
 function chromeOverlayParent(doc: {
   body: HTMLElement | null;
   documentElement: HTMLElement;
 }): HTMLElement {
-  return doc.body ?? doc.documentElement;
+  return doc.documentElement;
 }
 
-function showChromeOverlay(el: HTMLElement): void {
-  if (typeof el.showPopover !== "function") return;
-  el.setAttribute("popover", "manual");
-  try {
-    el.showPopover();
-  } catch {
-    el.removeAttribute("popover");
+/**
+ * HTML popover top-layer sits above the Route Builder canvas.
+ * Re-open after hidePopover: a closed popover is display:none / under the map.
+ * Do not set display:flex until after showPopover — that override keeps a
+ * closed popover in the page stacking context (behind the canvas).
+ */
+export function promoteChromeOverlay(
+  el: HTMLElement,
+  layout: PanoLayout,
+): void {
+  const parent = chromeOverlayParent(document);
+  if (el.parentElement !== parent) parent.appendChild(el);
+  else if (parent.lastElementChild !== el) parent.appendChild(el);
+  if (typeof el.showPopover === "function") {
+    el.setAttribute("popover", "manual");
+    try {
+      if (!el.matches(":popover-open")) el.showPopover();
+    } catch {
+      /* already open */
+    }
   }
+  applyPanoWindowLayout(el, layout);
+  setImportant(el, "display", "flex");
 }

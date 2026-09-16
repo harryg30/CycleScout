@@ -48,6 +48,29 @@ export function defaultPanoLayoutForMap(box: MapBox): PanoLayout {
   };
 }
 
+/** Keep the Pano Window on-screen so a stored layout cannot park it off the viewport. */
+export function clampPanoLayoutToViewport(
+  layout: PanoLayout,
+  viewport: { width: number; height: number },
+): PanoLayout {
+  const width = Math.min(
+    Math.max(280, layout.width),
+    Math.max(280, viewport.width),
+  );
+  const height = Math.min(
+    Math.max(200, layout.height),
+    Math.max(200, viewport.height),
+  );
+  const boxW = Math.min(width, viewport.width);
+  const boxH = Math.min(height, viewport.height);
+  return {
+    x: Math.min(Math.max(0, layout.x), Math.max(0, viewport.width - boxW)),
+    y: Math.min(Math.max(0, layout.y), Math.max(0, viewport.height - boxH)),
+    width: boxW,
+    height: boxH,
+  };
+}
+
 export type StreetViewCredential = {
   /** Rider Maps Key passed to Street View at show time. */
   apiKey: string;

@@ -1,9 +1,11 @@
 /* Pano Window overlay styles — injected on Route Builder pages */
 .ssp-pano {
   position: fixed;
-  z-index: 2147483646;
-  display: flex;
+  z-index: 2147483647;
   flex-direction: column;
+  right: auto;
+  bottom: auto;
+  margin: 0;
   min-width: 280px;
   min-height: 200px;
   background: #1a1a1a;
@@ -15,24 +17,30 @@
   overflow: hidden;
 }
 
+.ssp-pano:popover-open {
+  display: flex;
+}
+
 .ssp-pano__chrome {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 8px;
+  padding: 10px 12px;
   background: #242424;
   border-bottom: 1px solid #3a3a3a;
   user-select: none;
   cursor: grab;
   touch-action: none;
   flex: 0 0 auto;
+  position: relative;
+  z-index: 4;
 }
 
 .ssp-pano__title {
   flex: 1;
   font-weight: 600;
   letter-spacing: 0.02em;
-  pointer-events: none;
+  cursor: grab;
 }
 
 .ssp-pano__close {
@@ -105,6 +113,8 @@
   width: 16px;
   height: 16px;
   cursor: nwse-resize;
+  touch-action: none;
+  z-index: 5;
   background: linear-gradient(
     135deg,
     transparent 50%,

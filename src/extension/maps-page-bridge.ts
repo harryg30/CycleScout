@@ -51,7 +51,7 @@ import {
       const script = document.createElement("script");
       script.id = "ssp-maps-js";
       script.async = true;
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly`;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly&loading=async`;
       script.onload = () => waitForMaps().then(resolve, reject);
       script.onerror = () =>
         reject(new Error("Failed to load Google Maps JavaScript API"));
