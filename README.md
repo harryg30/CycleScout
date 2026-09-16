@@ -8,12 +8,7 @@ Riders generate a **Maps Key** in their own Google Cloud project and paste it in
 
 ## Setup
 
-1. Enable the **Maps JavaScript API** in your Google Cloud project.
-2. Create an API key.
-3. Restrict HTTP referrers to `https://www.strava.com/*`, `https://ridewithgps.com/*`, and `https://www.ridewithgps.com/*` (Maps JS loads on the Route Builder, not as `chrome-extension://`).
-4. Paste the key in the **Extension Popup**. See [Get an API key](https://developers.google.com/maps/documentation/javascript/get-api-key).
-
-Google Maps cost is billed to your Google Cloud account. This extension does not mint, share, or rate-limit a key.
+Riders create a **Maps Key** in their own billable Google Cloud project and paste it in the **Extension Popup**. Follow [Set up a Google Maps API key](docs/maps-key.md). Google Maps cost is billed to your Google Cloud account. This extension does not mint, share, or rate-limit a key.
 
 ```bash
 npm install
@@ -46,7 +41,7 @@ Content script matching is those Route Builder URL patterns; elsewhere the exten
 ## Popup
 
 - **Set Anchor with** Left click / Right click / Scroll wheel (default Right; persisted)
-- **Maps Key** field plus generate steps (Maps JavaScript API, create key, restrict referrers)
+- **Maps Key** field plus generate steps, with a link to [Set up a Google Maps API key](docs/maps-key.md)
 
 ## Notes
 
