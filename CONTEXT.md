@@ -6,13 +6,17 @@ The rider generates a Maps Key in their own Google Cloud project and pastes it i
 
 ## Language
 
+**Host**:
+A cycling-route site CycleScout injects into. Each Host has its own Route Builder URL pattern. Currently Strava and Ride with GPS.
+_Avoid_: treating the product as Strava-only, calling every map page a Route Builder
+
 **Route Builder**:
-Strava’s map page for creating or editing a route (plotting the path before saving), at `https://www.strava.com/maps/*`.
-_Avoid_: activity page, segment explorer, heatmap, treating `/routes/new` as the product URL
+The Host’s map page for creating or editing a route (plotting the path before saving). Strava: `https://www.strava.com/maps/*`. Ride with GPS: `https://ridewithgps.com/routes/new` and `https://ridewithgps.com/routes/:id/edit`.
+_Avoid_: activity page, segment explorer, heatmap, Strava `/routes/new`, Ride with GPS route view pages (`/routes/:id` without `/edit`)
 
 **Pano Window**:
 A draggable, resizable floating overlay on the Route Builder that shows a Google Street View panorama. Closed from the overlay or when leaving the Route Builder; position and size are remembered across visits.
-_Avoid_: separate Chrome window, side panel, replacing Strava’s map, full-tab navigate-away, surviving on other Strava pages
+_Avoid_: separate Chrome window, side panel, replacing the Host’s map, full-tab navigate-away, surviving on other Host pages
 
 **Pano**:
 The street-level 360° Street View image shown in the Pano Window for the current Anchor Point. View-only — looking around does not change the route.
@@ -23,7 +27,7 @@ The map location that determines which Pano is shown. Updated by Map Click. A pe
 _Avoid_: waypoint, GPS fix
 
 **Map Click**:
-A click on the Route Builder map that sets the Anchor Point. The rider chooses Left or Right in the Extension Popup (default Right). Only the chosen button moves the Anchor; the other does not. Left click still places/extends the route on Strava when Strava handles it.
+A click on the Route Builder map that sets the Anchor Point. The rider chooses Left or Right in the Extension Popup (default Right). Only the chosen button moves the Anchor; the other does not. Left click still places/extends the route when the Host handles it.
 _Avoid_: map hover-follow, Tip Follow, always tracking the route tip
 
 **Map Click Button**:

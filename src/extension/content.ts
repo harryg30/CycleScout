@@ -1,11 +1,11 @@
-import { StravaHostPage } from "../adapters/host-page/strava-host-page.js";
+import { createHostPage } from "../adapters/host-page/create-host-page.js";
 import { ChromeSettingsStore } from "../adapters/settings/chrome-settings-store.js";
 import { MapsStreetViewSurface } from "../adapters/street-view/maps-street-view-surface.js";
 import { ExtensionApplication } from "../core/extension-application.js";
 
 /**
- * Content script entry — injected only on https://www.strava.com/maps/*.
- * Host Page still gates on /maps/* for SPA leave/return; elsewhere silent (no inject).
+ * Content script entry — injected on Strava /maps/* and Ride with GPS planner URLs.
+ * Host Page still gates on that Host’s Route Builder path for SPA leave/return.
  */
 function showBootError(err: unknown): void {
   const message = err instanceof Error ? err.message : String(err);
@@ -35,7 +35,7 @@ function showBootError(err: unknown): void {
 
 try {
   const app = new ExtensionApplication({
-    hostPage: new StravaHostPage(),
+    hostPage: createHostPage(),
     streetView: new MapsStreetViewSurface(),
     settings: new ChromeSettingsStore(),
   });

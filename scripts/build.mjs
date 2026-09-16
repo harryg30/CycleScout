@@ -34,6 +34,7 @@ await esbuild.build({
   entryPoints: [
     path.join(root, "src/extension/maps-page-bridge.ts"),
     path.join(root, "src/extension/host-mre-bridge.ts"),
+    path.join(root, "src/extension/host-maplibre-bridge.ts"),
   ],
   outdir: dist,
   entryNames: "[name]",
@@ -52,6 +53,14 @@ fs.copyFileSync(
   path.join(dist, "popup.css"),
 );
 
+const routeBuilderMatches = [
+  "https://www.strava.com/maps/*",
+  "https://ridewithgps.com/routes/new*",
+  "https://ridewithgps.com/routes/*/edit*",
+  "https://www.ridewithgps.com/routes/new*",
+  "https://www.ridewithgps.com/routes/*/edit*",
+];
+
 const manifest = {
   manifest_version: 3,
   name: "CycleScout",
@@ -59,7 +68,7 @@ const manifest = {
   description:
     "Street-level preview for cycling routes — view-only Pano Window on the Route Builder.",
   permissions: ["storage"],
-  host_permissions: ["https://www.strava.com/maps/*"],
+  host_permissions: routeBuilderMatches,
   action: {
     default_popup: "popup.html",
     default_title: "CycleScout",
@@ -67,8 +76,8 @@ const manifest = {
   content_scripts: [
     {
       // Isolated world keeps chrome.* + avoids page JS collisions.
-      // Maps JS + MRE lat/lng run via page-world bridges.
-      matches: ["https://www.strava.com/maps/*"],
+      // Maps JS + host lat/lng run via page-world bridges.
+      matches: routeBuilderMatches,
       js: ["content.js"],
       css: ["content.css"],
       run_at: "document_idle",
@@ -76,8 +85,16 @@ const manifest = {
   ],
   web_accessible_resources: [
     {
-      resources: ["maps-page-bridge.js", "host-mre-bridge.js"],
-      matches: ["https://www.strava.com/*"],
+      resources: [
+        "maps-page-bridge.js",
+        "host-mre-bridge.js",
+        "host-maplibre-bridge.js",
+      ],
+      matches: [
+        "https://www.strava.com/*",
+        "https://ridewithgps.com/*",
+        "https://www.ridewithgps.com/*",
+      ],
     },
   ],
 };

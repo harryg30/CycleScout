@@ -1,10 +1,21 @@
 import { describe, expect, it } from "vitest";
+import { createHostPage } from "../src/adapters/host-page/create-host-page.js";
+import {
+  clientPointToMapPixel,
+  latLngFromUnknown,
+} from "../src/adapters/host-page/maplibre-coords.js";
+import {
+  isRideWithGpsHost,
+  isRideWithGpsRouteBuilderUrl,
+  RideWithGpsHostPage,
+} from "../src/adapters/host-page/ridewithgps-host-page.js";
 import {
   clickScreenMatchesAnchor,
   exceedsDragThreshold,
   finishPointerGestureState,
   isRouteBuilderUrl,
   MAP_DRAG_THRESHOLD_PX,
+  StravaHostPage,
 } from "../src/adapters/host-page/strava-host-page.js";
 
 describe("Route Builder URL detection", () => {
@@ -22,6 +33,63 @@ describe("Route Builder URL detection", () => {
     expect(isRouteBuilderUrl("/routes/new")).toBe(false);
     expect(isRouteBuilderUrl("/routes/12345/edit")).toBe(false);
     expect(isRouteBuilderUrl("/mapping")).toBe(false);
+  });
+});
+
+describe("Ride with GPS Route Builder URL detection", () => {
+  it("matches planner new and edit paths", () => {
+    expect(isRideWithGpsRouteBuilderUrl("/routes/new")).toBe(true);
+    expect(isRideWithGpsRouteBuilderUrl("/routes/new/")).toBe(true);
+    expect(isRideWithGpsRouteBuilderUrl("/routes/12345/edit")).toBe(true);
+    expect(isRideWithGpsRouteBuilderUrl("/routes/12345/edit/")).toBe(true);
+    expect(isRideWithGpsRouteBuilderUrl("/routes/abc-def/edit")).toBe(true);
+  });
+
+  it("rejects Ride with GPS pages that are not the Route Planner", () => {
+    expect(isRideWithGpsRouteBuilderUrl("/routes")).toBe(false);
+    expect(isRideWithGpsRouteBuilderUrl("/routes/12345")).toBe(false);
+    expect(isRideWithGpsRouteBuilderUrl("/routes/explore")).toBe(false);
+    expect(isRideWithGpsRouteBuilderUrl("/routes/newish")).toBe(false);
+    expect(isRideWithGpsRouteBuilderUrl("/maps")).toBe(false);
+    expect(isRideWithGpsRouteBuilderUrl("/dashboard")).toBe(false);
+  });
+
+  it("recognizes Ride with GPS hosts including www", () => {
+    expect(isRideWithGpsHost("ridewithgps.com")).toBe(true);
+    expect(isRideWithGpsHost("www.ridewithgps.com")).toBe(true);
+    expect(isRideWithGpsHost("www.strava.com")).toBe(false);
+    expect(isRideWithGpsHost("maps.ridewithgps.com")).toBe(false);
+  });
+});
+
+describe("Host Page factory", () => {
+  it("uses RideWithGpsHostPage on Ride with GPS", () => {
+    expect(createHostPage("ridewithgps.com")).toBeInstanceOf(RideWithGpsHostPage);
+    expect(createHostPage("www.ridewithgps.com")).toBeInstanceOf(
+      RideWithGpsHostPage,
+    );
+  });
+
+  it("uses StravaHostPage on Strava", () => {
+    expect(createHostPage("www.strava.com")).toBeInstanceOf(StravaHostPage);
+    expect(createHostPage("strava.com")).toBeInstanceOf(StravaHostPage);
+  });
+});
+
+describe("MapLibre client→map pixel", () => {
+  it("subtracts the map container origin from client coordinates", () => {
+    expect(
+      clientPointToMapPixel(250, 180, { left: 50, top: 60 }),
+    ).toEqual({ x: 200, y: 120 });
+  });
+
+  it("reads lat/lng from MapLibre-like objects", () => {
+    expect(latLngFromUnknown({ lat: 42.31, lng: -71.11 })).toEqual({
+      lat: 42.31,
+      lng: -71.11,
+    });
+    expect(latLngFromUnknown(null)).toBeNull();
+    expect(latLngFromUnknown({ lat: "x", lng: -71 })).toBeNull();
   });
 });
 

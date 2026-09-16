@@ -1,6 +1,6 @@
 # CycleScout
 
-Chrome Manifest V3 extension: street-level preview for cycling routes. A view-only **Pano Window** on the **Route Builder** (currently Strava at `https://www.strava.com/maps/*`). Settings live in the **Extension Popup**. Domain language: [`CONTEXT.md`](CONTEXT.md). Design decisions: [`docs/adr/`](docs/adr/).
+Chrome Manifest V3 extension: street-level preview for cycling routes. A view-only **Pano Window** on the **Route Builder** (Strava at `https://www.strava.com/maps/*`, Ride with GPS at `https://ridewithgps.com/routes/new` and route edit URLs). Settings live in the **Extension Popup**. Domain language: [`CONTEXT.md`](CONTEXT.md). Design decisions: [`docs/adr/`](docs/adr/).
 
 ## Status
 
@@ -10,7 +10,7 @@ Riders generate a **Maps Key** in their own Google Cloud project and paste it in
 
 1. Enable the **Maps JavaScript API** in your Google Cloud project.
 2. Create an API key.
-3. Restrict HTTP referrers to `https://www.strava.com/*` (Maps JS loads on Route Builder, not as `chrome-extension://`).
+3. Restrict HTTP referrers to `https://www.strava.com/*`, `https://ridewithgps.com/*`, and `https://www.ridewithgps.com/*` (Maps JS loads on the Route Builder, not as `chrome-extension://`).
 4. Paste the key in the **Extension Popup**. See [Get an API key](https://developers.google.com/maps/documentation/javascript/get-api-key).
 
 Google Maps cost is billed to your Google Cloud account. This extension does not mint, share, or rate-limit a key.
@@ -27,10 +27,10 @@ npm test
 2. Chrome → `chrome://extensions` → Developer mode → **Load unpacked**
 3. Select the `dist/` folder
 4. Paste your Maps Key in the Extension Popup
-5. Open Strava Route Builder at `https://www.strava.com/maps/*`
+5. Open a **Route Builder**: Strava `https://www.strava.com/maps/*`, or Ride with GPS `https://ridewithgps.com/routes/new` (or `/routes/:id/edit`)
 6. Click the map to set an **Anchor Point** and load Street View
 
-Route Builder is **only** `https://www.strava.com/maps/*` — content script and Host Page matching use that pattern; elsewhere the extension does not inject / is a silent no-op.
+Content script matching is those Route Builder URL patterns; elsewhere the extension does not inject / is a silent no-op. Ride with GPS route *view* pages (`/routes/:id` without `/edit`) are not Route Builder.
 
 ## Layout
 
@@ -38,9 +38,9 @@ Route Builder is **only** `https://www.strava.com/maps/*` — content script and
 |------|------|
 | `src/core/` | Extension application core (Anchor Point, Pano lifecycle, Coverage Gap) |
 | `src/ports/` | Host Page, Street View surface, Settings |
-| `src/adapters/` | Strava Host Page, Maps JS surface (isolated-world RPC), chrome.storage |
-| `src/extension/` | Content script, popup; **page-world** injectables (`maps-page-bridge`, `host-mre-bridge`) that cannot use `chrome.*` |
-| `tests/` | Seam tests with fakes (no Strava DOM / Maps SDK internals); unit tests OK for pure helpers |
+| `src/adapters/` | Strava and Ride with GPS Host Pages, Maps JS surface (isolated-world RPC), chrome.storage |
+| `src/extension/` | Content script, popup; **page-world** injectables (`maps-page-bridge`, `host-mre-bridge`, `host-maplibre-bridge`) that cannot use `chrome.*` |
+| `tests/` | Seam tests with fakes (no Host DOM / Maps SDK internals); unit tests OK for pure helpers |
 | `scripts/build.mjs` | esbuild; one artifact for Store and Dev |
 
 ## Popup
@@ -50,6 +50,6 @@ Route Builder is **only** `https://www.strava.com/maps/*` — content script and
 
 ## Notes
 
-- Non–Route Builder Strava pages: silent no-op (no Pano, no listeners, no toasts).
+- Non–Route Builder pages: silent no-op (no Pano, no listeners, no toasts).
 - **Coverage Gap**: keeps last successful Pano + “No Street View at this point”; never blanks or auto-snaps.
 - Maps Key is stored in `chrome.storage.local` for this browser profile.

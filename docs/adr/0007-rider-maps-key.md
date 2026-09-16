@@ -2,7 +2,7 @@
 
 Store and Personal were going to share a project-owned Maps key behind Access Service metering (ADR 0002). That fights the actual product we want: a Chrome extension that shows Street View, with Google’s bill on the rider. Riders generate a Maps Key in their own Google Cloud project and paste it in the Extension Popup. There is no Access Service, no product Quota, no Membership, and no Dev Key Override. Store and Dev are the same experience. One build.
 
-Google’s own Cloud billing and quotas still apply on the rider’s project. HTTP referrer restriction for the key is `https://www.strava.com/*` because Maps JS loads in the Route Builder page, not as `chrome-extension://`.
+Google’s own Cloud billing and quotas still apply on the rider’s project. HTTP referrer restriction for the key must cover every Route Builder origin where Maps JS loads (`https://www.strava.com/*`, `https://ridewithgps.com/*`, `https://www.ridewithgps.com/*`), not `chrome-extension://`.
 
 ## Status
 
