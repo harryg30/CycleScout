@@ -1,4 +1,4 @@
-# Set up a Google Maps API key
+# Set up a Maps Key
 
 CycleScout shows Street View with **your** Google Maps JavaScript API key (the **Maps Key**). Google bills that usage to **your** Cloud account. CycleScout does not mint, share, or rate-limit a key.
 
@@ -37,7 +37,7 @@ A payment method is required; a budget is how you get warned before a surprise b
 2. Create a budget for this project (for example a few dollars a month).
 3. Turn on email alerts at 50%, 90%, and 100%.
 
-Optional extra cap: **APIs & Services → Maps JavaScript API → Quotas**, and set a daily request limit you are comfortable with.
+Optional extra cap: in Google Cloud, open **Maps JavaScript API** and set a daily request limit you are comfortable with.
 
 ## 4. Enable only the Maps JavaScript API
 
@@ -47,7 +47,7 @@ Optional extra cap: **APIs & Services → Maps JavaScript API → Quotas**, and 
 
 You do **not** need Places, Directions, Geocoding, Street View Static, or Embed for CycleScout. Enabling extra APIs only widens what a stolen key could spend.
 
-## 5. Create an API key
+## 5. Create a Maps Key
 
 1. Open [Credentials](https://console.cloud.google.com/google/maps-apis/credentials) (**Google Maps Platform → Credentials**, or **APIs & Services → Credentials**).
 2. **Create credentials → API key**.

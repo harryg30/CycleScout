@@ -8,7 +8,7 @@ Riders generate a **Maps Key** in their own Google Cloud project and paste it in
 
 ## Setup
 
-Riders create a **Maps Key** in their own billable Google Cloud project and paste it in the **Extension Popup**. Follow [Set up a Google Maps API key](docs/maps-key.md). Google Maps cost is billed to your Google Cloud account. This extension does not mint, share, or rate-limit a key.
+Riders create a **Maps Key** in their own billable Google Cloud project and paste it in the **Extension Popup**. Follow [Set up a Maps Key](docs/maps-key.md). Google Maps cost is billed to your Google Cloud account. This extension does not mint, share, or rate-limit a key.
 
 ```bash
 npm install
@@ -41,7 +41,7 @@ Content script matching is those Route Builder URL patterns; elsewhere the exten
 ## Popup
 
 - **Set Anchor with** Left click / Right click / Scroll wheel (default Right; persisted)
-- **Maps Key** field plus generate steps, with a link to [Set up a Google Maps API key](docs/maps-key.md)
+- **Maps Key** field, with a link to [Set up a Maps Key](docs/maps-key.md)
 
 ## Notes
 
