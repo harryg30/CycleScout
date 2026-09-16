@@ -70,3 +70,49 @@ describe("ChromeSettingsStore Maps Key", () => {
     expect(notified).toBe(1);
   });
 });
+
+describe("ChromeSettingsStore Map Click Button", () => {
+  let sync: ReturnType<typeof createMemoryArea>;
+
+  beforeEach(() => {
+    const listeners: Array<(changes: AreaChange, area: string) => void> = [];
+    const fire = (changes: AreaChange, area: string) => {
+      for (const listener of listeners) listener(changes, area);
+    };
+    const local = createMemoryArea(fire);
+    sync = createMemoryArea(fire);
+    vi.stubGlobal("chrome", {
+      runtime: { id: "ext-id" },
+      storage: {
+        local,
+        sync,
+        onChanged: {
+          addListener(listener: (changes: AreaChange, area: string) => void) {
+            listeners.push(listener);
+          },
+        },
+      },
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("defaults to right when unset or unknown", async () => {
+    const store = new ChromeSettingsStore();
+    expect(await store.getMapClickButton()).toBe("right");
+    await store.setMapClickButton("left");
+    sync.data.set("ssp.mapClickButton", "nope");
+    expect(await store.getMapClickButton()).toBe("right");
+  });
+
+  it("persists left and middle", async () => {
+    const store = new ChromeSettingsStore();
+    await store.setMapClickButton("left");
+    expect(await store.getMapClickButton()).toBe("left");
+    await store.setMapClickButton("middle");
+    expect(await store.getMapClickButton()).toBe("middle");
+    expect(sync.data.get("ssp.mapClickButton")).toBe("middle");
+  });
+});

@@ -27,15 +27,15 @@ The map location that determines which Pano is shown. Updated by Map Click. A pe
 _Avoid_: waypoint, GPS fix
 
 **Map Click**:
-A click on the Route Builder map that sets the Anchor Point. The rider chooses Left or Right in the Extension Popup (default Right). Only the chosen button moves the Anchor; the other does not. Left click still places/extends the route when the Host handles it.
+A click on the Route Builder map that sets the Anchor Point. The rider chooses Left, Right, or Scroll wheel in the Extension Popup (default Right). Only the chosen button moves the Anchor; the others do not. Left click still places/extends the route when the Host handles it.
 _Avoid_: map hover-follow, Tip Follow, always tracking the route tip
 
 **Map Click Button**:
-The Extension Popup choice of which mouse button performs Map Click: `left` or `right` (default `right`).
+The Extension Popup choice of which mouse button performs Map Click: `left`, `right`, or `middle` (Scroll wheel; default `right`).
 _Avoid_: Tip Follow toggle, modifier-key chords
 
 **Extension Popup**:
-The UI opened from the extension’s Chrome toolbar icon. Holds Map Click Button (Left / Right) and the Maps Key field, plus a pointer to generate a key in Google Cloud.
+The UI opened from the extension’s Chrome toolbar icon. Holds Map Click Button (Left / Right / Scroll wheel) and the Maps Key field, plus a pointer to generate a key in Google Cloud.
 _Avoid_: in-page settings panel, Connect with Google, account row, Access Service login
 
 **Coverage Gap**:

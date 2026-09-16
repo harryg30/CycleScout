@@ -8,7 +8,7 @@ import type {
 } from "../domain/types.js";
 
 /**
- * Host Page port — Route Builder enter/leave and Map Click (left or right).
+ * Host Page port — Route Builder enter/leave and Map Click (left, right, or middle).
  */
 export interface HostPage {
   isRouteBuilder(): boolean;
@@ -28,7 +28,8 @@ export interface HostPage {
   onMapClickMiss?(listener: (reason: string) => void): () => void;
   /**
    * Which button is the active Map Click Button (default right).
-   * Used so right-click can suppress the browser menu only when selected.
+   * Used so right-click can suppress the browser menu, and scroll-wheel
+   * click can suppress autoscroll, only when selected.
    */
   setMapClickButton(button: MapClickButton): void;
   /**

@@ -56,4 +56,4 @@ export type StreetViewCredential = {
 export type CoverageStatus = "covered" | "coverage_gap";
 
 /** Which mouse button performs Map Click (sets the Anchor Point). */
-export type MapClickButton = "left" | "right";
+export type MapClickButton = "left" | "right" | "middle";

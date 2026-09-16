@@ -319,6 +319,26 @@ describe("ExtensionApplication seams", () => {
     await flush();
     expect(streetView.shownAnchors).toEqual([point]);
   });
+
+  it("middle Map Click Button: scroll-wheel click moves Anchor; left and right ignored", async () => {
+    host.setRouteBuilder(true);
+    await flush();
+
+    await settings.setMapClickButton("middle");
+    await flush();
+    expect(app.getState().mapClickButton).toBe("middle");
+    expect(host.mapClickButton).toBe("middle");
+
+    host.emitMapClick({ lat: 1, lng: 1 }, "left");
+    host.emitMapClick({ lat: 2, lng: 2 }, "right");
+    await flush();
+    expect(streetView.shownAnchors).toHaveLength(0);
+
+    const point = { lat: 3, lng: 3 };
+    host.emitMapClick(point, "middle");
+    await flush();
+    expect(streetView.shownAnchors).toEqual([point]);
+  });
 });
 
 async function flush(): Promise<void> {

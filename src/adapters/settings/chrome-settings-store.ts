@@ -15,7 +15,8 @@ const KEYS = {
 type ChangeListener = () => void;
 
 function parseMapClickButton(value: unknown): MapClickButton {
-  return value === "left" ? "left" : "right";
+  if (value === "left" || value === "middle") return value;
+  return "right";
 }
 
 /**

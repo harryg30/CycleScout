@@ -25,11 +25,11 @@ import { StravaHostPage } from "../src/adapters/host-page/strava-host-page.ts";
 import { ExtensionApplication } from "../src/core/extension-application.ts";
 
 class MemSettings {
-  mapClickButton: "left" | "right" = "right";
+  mapClickButton: "left" | "right" | "middle" = "right";
   mapsKey = "test";
   listeners = new Set<() => void>();
   async getMapClickButton() { return this.mapClickButton; }
-  async setMapClickButton(b: "left" | "right") { this.mapClickButton = b; this.notify(); }
+  async setMapClickButton(b: "left" | "right" | "middle") { this.mapClickButton = b; this.notify(); }
   async getMapsKey() { return this.mapsKey; }
   async setMapsKey(key: string) { this.mapsKey = key; this.notify(); }
   async getPanoLayout() { return null; }

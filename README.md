@@ -45,7 +45,7 @@ Content script matching is those Route Builder URL patterns; elsewhere the exten
 
 ## Popup
 
-- **Set Anchor with** Left click / Right click (default Right; persisted)
+- **Set Anchor with** Left click / Right click / Scroll wheel (default Right; persisted)
 - **Maps Key** field plus generate steps (Maps JavaScript API, create key, restrict referrers)
 
 ## Notes

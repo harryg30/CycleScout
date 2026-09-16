@@ -1,5 +1,5 @@
 /**
- * Repro: Map Click (left / right) must drive Anchor → Street View.
+ * Repro: Map Click (left / right / middle) must drive Anchor → Street View.
  * Also covers "bridge <script> already on page" (extension reload without tab refresh).
  *
  * Exit 1 = red (bug present). Exit 0 = green.
@@ -27,11 +27,11 @@ import { StravaHostPage } from "../src/adapters/host-page/strava-host-page.ts";
 import { ExtensionApplication } from "../src/core/extension-application.ts";
 
 class MemSettings {
-  mapClickButton: "left" | "right" = "left";
+  mapClickButton: "left" | "right" | "middle" = "left";
   mapsKey = "test";
   listeners = new Set<() => void>();
   async getMapClickButton() { return this.mapClickButton; }
-  async setMapClickButton(b: "left" | "right") { this.mapClickButton = b; this.notify(); }
+  async setMapClickButton(b: "left" | "right" | "middle") { this.mapClickButton = b; this.notify(); }
   async getMapsKey() { return this.mapsKey; }
   async setMapsKey(key: string) { this.mapsKey = key; this.notify(); }
   async getPanoLayout() { return null; }
@@ -179,6 +179,22 @@ window.__boot = async () => {
   await clickCanvas("left");
   const rightModeLeft = await page.evaluate(() => window.__streetView.shown.length);
 
+  await page.evaluate(async () => {
+    window.__streetView.shown = [];
+    await window.__settings.setMapClickButton("middle");
+    await new Promise((r) => setTimeout(r, 30));
+  });
+  await clickCanvas("middle");
+  const middleModeMiddle = await page.evaluate(() => window.__streetView.shown.length);
+
+  await page.evaluate(() => {
+    window.__streetView.shown = [];
+  });
+  await clickCanvas("left");
+  const middleModeLeft = await page.evaluate(() => window.__streetView.shown.length);
+  await clickCanvas("right");
+  const middleModeRight = await page.evaluate(() => window.__streetView.shown.length);
+
   const state = await page.evaluate(() => ({
     onRouteBuilder: window.__app.getState().onRouteBuilder,
     mapClickButton: window.__app.getState().mapClickButton,
@@ -193,6 +209,9 @@ window.__boot = async () => {
     leftModeRightIgnored: leftModeRight === beforeRight,
     rightModeRight,
     rightModeLeft,
+    middleModeMiddle,
+    middleModeLeft,
+    middleModeRight,
     state,
   };
   console.log(JSON.stringify(report, null, 2));
@@ -201,13 +220,16 @@ window.__boot = async () => {
     leftModeLeft >= 1 &&
     leftModeRight === beforeRight &&
     rightModeRight >= 1 &&
-    rightModeLeft === 0;
+    rightModeLeft === 0 &&
+    middleModeMiddle >= 1 &&
+    middleModeLeft === 0 &&
+    middleModeRight === 0;
 
   if (!ok) {
     console.error("RED: Map Click Button did not drive Anchor as expected");
     process.exit(1);
   }
-  console.log("GREEN: left/right Map Click Button OK (incl. pre-existing bridge)");
+  console.log("GREEN: left/right/middle Map Click Button OK (incl. pre-existing bridge)");
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }

@@ -98,6 +98,9 @@ fieldset.map-click-button {
   padding: 6px 0 0;
   border: none;
   min-inline-size: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
 }
 
 fieldset.map-click-button legend {
@@ -109,7 +112,7 @@ fieldset.map-click-button legend {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .segmented label {

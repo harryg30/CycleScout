@@ -15,6 +15,7 @@ import {
   finishPointerGestureState,
   isRouteBuilderUrl,
   MAP_DRAG_THRESHOLD_PX,
+  pointerButtonToMapClick,
   StravaHostPage,
 } from "../src/adapters/host-page/strava-host-page.js";
 
@@ -110,6 +111,15 @@ describe("Map drag vs Map Click", () => {
     expect(
       exceedsDragThreshold({ x: 10, y: 10 }, { x: 10, y: 10 + MAP_DRAG_THRESHOLD_PX }),
     ).toBe(true);
+  });
+});
+
+describe("pointerButtonToMapClick", () => {
+  it("maps primary, scroll-wheel, and secondary buttons", () => {
+    expect(pointerButtonToMapClick(0)).toBe("left");
+    expect(pointerButtonToMapClick(1)).toBe("middle");
+    expect(pointerButtonToMapClick(2)).toBe("right");
+    expect(pointerButtonToMapClick(3)).toBeNull();
   });
 });
 

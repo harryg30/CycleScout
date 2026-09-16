@@ -5,6 +5,7 @@ import {
   clickScreenMatchesAnchor,
   exceedsDragThreshold,
   finishPointerGestureState,
+  pointerButtonToMapClick,
 } from "./strava-host-page.js";
 
 const RW_REQUEST = "ssp-rwgps-isolated";
@@ -229,6 +230,7 @@ export class RideWithGpsHostPage implements HostPage {
     root.addEventListener("pointerdown", this.onMapPointerDown, true);
     root.addEventListener("pointermove", this.onMapPointerMove, true);
     root.addEventListener("click", this.onMapDomClick, true);
+    root.addEventListener("auxclick", this.onMapAuxClick, true);
     root.addEventListener("contextmenu", this.onMapContextMenu, true);
     this.mapAttached = true;
     this.wirePegRefresh(root);
@@ -255,6 +257,7 @@ export class RideWithGpsHostPage implements HostPage {
     this.mapRoot.removeEventListener("pointerdown", this.onMapPointerDown, true);
     this.mapRoot.removeEventListener("pointermove", this.onMapPointerMove, true);
     this.mapRoot.removeEventListener("click", this.onMapDomClick, true);
+    this.mapRoot.removeEventListener("auxclick", this.onMapAuxClick, true);
     this.mapRoot.removeEventListener("contextmenu", this.onMapContextMenu, true);
     this.mapRoot = null;
     this.mapAttached = false;
@@ -266,6 +269,10 @@ export class RideWithGpsHostPage implements HostPage {
   private onMapPointerDown = (event: PointerEvent): void => {
     const button = pointerButtonToMapClick(event.button);
     if (!button) return;
+    if (button === "middle") {
+      if (this.mapClickButton !== "middle") return;
+      event.preventDefault();
+    }
     this.pointerDown = { x: event.clientX, y: event.clientY, button };
     this.dragExceeded = false;
   };
@@ -284,9 +291,37 @@ export class RideWithGpsHostPage implements HostPage {
 
   private onMapDomClick = (event: MouseEvent): void => {
     if (this.mapListeners.size === 0) return;
+    if (event.button !== 0) return;
     if (!isMapLibreSurfaceTarget(event.target)) return;
     if (this.finishPointerGesture(event.clientX, event.clientY)) return;
     void this.resolveClick(event, "left");
+  };
+
+  private onMapAuxClick = (event: MouseEvent): void => {
+    if (this.mapListeners.size === 0) return;
+    if (pointerButtonToMapClick(event.button) !== "middle") return;
+    if (this.mapClickButton !== "middle") {
+      this.pointerDown = null;
+      this.dragExceeded = false;
+      return;
+    }
+    if (!isMapLibreSurfaceTarget(event.target)) {
+      this.pointerDown = null;
+      this.dragExceeded = false;
+      return;
+    }
+
+    if (
+      this.finishPointerGesture(event.clientX, event.clientY, {
+        requireButton: "middle",
+      })
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    void this.resolveClick(event, "middle");
   };
 
   private onMapContextMenu = (event: MouseEvent): void => {
@@ -628,12 +663,6 @@ export class RideWithGpsHostPage implements HostPage {
       window.postMessage({ source: RW_REQUEST, id, ...payload }, "*");
     });
   }
-}
-
-function pointerButtonToMapClick(button: number): MapClickButton | null {
-  if (button === 0) return "left";
-  if (button === 2) return "right";
-  return null;
 }
 
 function findMapRoot(): HTMLElement | null {
