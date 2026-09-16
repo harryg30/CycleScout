@@ -69,9 +69,19 @@ const manifest = {
     "Street-level preview for cycling routes — view-only Pano Window on the Route Builder.",
   permissions: ["storage"],
   host_permissions: routeBuilderMatches,
+  icons: {
+    16: "icon-16.png",
+    48: "icon-48.png",
+    128: "icon-128.png",
+  },
   action: {
     default_popup: "popup.html",
     default_title: "CycleScout",
+    default_icon: {
+      16: "icon-16.png",
+      48: "icon-48.png",
+      128: "icon-128.png",
+    },
   },
   content_scripts: [
     {
@@ -107,5 +117,8 @@ fs.copyFileSync(
   path.join(root, "src/extension/content.css"),
   path.join(dist, "content.css"),
 );
+for (const name of ["icon-16.png", "icon-48.png", "icon-128.png"]) {
+  fs.copyFileSync(path.join(root, "icons", name), path.join(dist, name));
+}
 
 console.log(`[build] → ${dist}`);
