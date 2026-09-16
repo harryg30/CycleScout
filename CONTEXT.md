@@ -35,7 +35,7 @@ The Extension Popup choice of which mouse button performs Map Click: `left`, `ri
 _Avoid_: Tip Follow toggle, modifier-key chords
 
 **Extension Popup**:
-The UI opened from the extension’s Chrome toolbar icon. Holds Map Click Button (Left / Right / Scroll wheel) and the Maps Key field, plus a pointer to generate a key in Google Cloud.
+The UI opened from the extension’s Chrome toolbar icon. Holds Map Click Button (Left / Right / Scroll wheel) and the Maps Key field, plus a link to the Maps Key how-to (`docs/maps-key.md`).
 _Avoid_: in-page settings panel, Connect with Google, account row, Access Service login
 
 **Coverage Gap**:
