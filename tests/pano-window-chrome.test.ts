@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  applyPanoWindowLayout,
   nextPanoLayoutFromDrag,
   nextPanoLayoutFromResize,
 } from "../src/adapters/street-view/maps-street-view-surface.js";
+import { applyPanoWindowLayout } from "../src/adapters/street-view/pano-window-overlay.js";
 import { DEFAULT_PANO_LAYOUT, clampPanoLayoutToViewport } from "../src/domain/types.js";
 
 /** Author-style declaration that expands `inset` the way CSS does (wipes left/top). */

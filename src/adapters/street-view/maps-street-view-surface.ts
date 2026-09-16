@@ -7,6 +7,11 @@ import {
 } from "../../domain/types.js";
 import { extensionResourceUrl } from "../../extension/extension-context.js";
 import type { StreetViewSurface } from "../../ports/index.js";
+import {
+  applyPanoWindowLayout,
+  chromeOverlayParent,
+  promoteChromeOverlay,
+} from "./pano-window-overlay.js";
 
 const ROOT_ID = "strava-streets-pano-root";
 const VIEWPORT_ID = "strava-streets-pano-viewport";
@@ -54,8 +59,8 @@ export class MapsStreetViewSurface implements StreetViewSurface {
     }
   >();
   private messageHandler: ((event: MessageEvent) => void) | null = null;
-  private topKeeper: MutationObserver | null = null;
-  private topPulse: ReturnType<typeof setInterval> | null = null;
+  private overlayOnTopObserver: MutationObserver | null = null;
+  private overlayOnTopInterval: ReturnType<typeof setInterval> | null = null;
   private overlayUnmounting = false;
   private reqSeq = 0;
 
@@ -111,11 +116,11 @@ export class MapsStreetViewSurface implements StreetViewSurface {
     });
     this.endDrag();
     this.overlayUnmounting = true;
-    this.topKeeper?.disconnect();
-    this.topKeeper = null;
-    if (this.topPulse !== null) {
-      clearInterval(this.topPulse);
-      this.topPulse = null;
+    this.overlayOnTopObserver?.disconnect();
+    this.overlayOnTopObserver = null;
+    if (this.overlayOnTopInterval !== null) {
+      clearInterval(this.overlayOnTopInterval);
+      this.overlayOnTopInterval = null;
     }
     try {
       this.root.hidePopover?.();
@@ -316,7 +321,7 @@ export class MapsStreetViewSurface implements StreetViewSurface {
 
   /** Keep the overlay in the top layer and last under <html>. */
   private watchOverlayOnTop(el: HTMLElement): void {
-    this.topKeeper?.disconnect();
+    this.overlayOnTopObserver?.disconnect();
     const place = () => {
       if (this.overlayUnmounting || !el.isConnected || !this.layout) return;
       promoteChromeOverlay(el, this.layout);
@@ -326,10 +331,12 @@ export class MapsStreetViewSurface implements StreetViewSurface {
       if (this.overlayUnmounting) return;
       if (!el.matches(":popover-open")) queueMicrotask(place);
     });
-    this.topPulse = setInterval(place, 250);
+    this.overlayOnTopInterval = setInterval(place, 250);
     if (typeof MutationObserver !== "function") return;
-    this.topKeeper = new MutationObserver(place);
-    this.topKeeper.observe(chromeOverlayParent(document), { childList: true });
+    this.overlayOnTopObserver = new MutationObserver(place);
+    this.overlayOnTopObserver.observe(chromeOverlayParent(document), {
+      childList: true,
+    });
   }
 
   private wireDrag(root: HTMLElement): void {
@@ -422,29 +429,6 @@ export class MapsStreetViewSurface implements StreetViewSurface {
   }
 }
 
-export function isPanoDragHandleTarget(target: unknown): boolean {
-  const node = closestHost(target);
-  if (!node) return false;
-  if (node.closest(".ssp-pano__close")) return false;
-  return Boolean(node.closest("[data-drag-handle]"));
-}
-
-function closestHost(
-  target: unknown,
-): { closest: (selector: string) => unknown } | null {
-  if (!target || typeof target !== "object") return null;
-  const obj = target as {
-    closest?: (selector: string) => unknown;
-    parentElement?: { closest?: (selector: string) => unknown } | null;
-  };
-  if (typeof obj.closest === "function")
-    return obj as { closest: (s: string) => unknown };
-  const parent = obj.parentElement;
-  if (parent && typeof parent.closest === "function")
-    return parent as { closest: (s: string) => unknown };
-  return null;
-}
-
 export function nextPanoLayoutFromDrag(
   orig: PanoLayout,
   pointerStart: { x: number; y: number },
@@ -467,39 +451,6 @@ export function nextPanoLayoutFromResize(
     width: Math.max(280, orig.width + pointerNow.x - pointerStart.x),
     height: Math.max(200, orig.height + pointerNow.y - pointerStart.y),
   };
-}
-
-export function applyPanoWindowLayout(
-  el: HTMLElement,
-  layout: PanoLayout,
-): void {
-  el.style.zIndex = "2147483647";
-  el.style.flexDirection = "column";
-  el.style.minWidth = "280px";
-  el.style.minHeight = "200px";
-  el.style.background = "#1a1a1a";
-  el.style.border = "1px solid #3a3a3a";
-  el.style.color = "#f2f2f2";
-  el.style.overflow = "hidden";
-  el.style.boxSizing = "border-box";
-  // Do not use the inset shorthand — it wipes left/top and pins the window.
-  setImportant(el, "position", "fixed");
-  setImportant(el, "margin", "0");
-  setImportant(el, "right", "auto");
-  setImportant(el, "bottom", "auto");
-  setImportant(el, "left", `${layout.x}px`);
-  setImportant(el, "top", `${layout.y}px`);
-  setImportant(el, "width", `${layout.width}px`);
-  setImportant(el, "height", `${layout.height}px`);
-}
-
-function setImportant(el: HTMLElement, name: string, value: string): void {
-  if (typeof el.style.setProperty === "function") {
-    el.style.setProperty(name, value, "important");
-    return;
-  }
-  const camel = name.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
-  (el.style as unknown as Record<string, string>)[camel] = value;
 }
 
 function applyPanoInnerLayout(root: HTMLElement): void {
@@ -559,36 +510,4 @@ function viewportSize(): { width: number; height: number } {
     width: globalThis.window?.innerWidth ?? 1280,
     height: globalThis.window?.innerHeight ?? 800,
   };
-}
-
-function chromeOverlayParent(doc: {
-  body: HTMLElement | null;
-  documentElement: HTMLElement;
-}): HTMLElement {
-  return doc.documentElement;
-}
-
-/**
- * HTML popover top-layer sits above the Route Builder canvas.
- * Re-open after hidePopover: a closed popover is display:none / under the map.
- * Do not set display:flex until after showPopover — that override keeps a
- * closed popover in the page stacking context (behind the canvas).
- */
-export function promoteChromeOverlay(
-  el: HTMLElement,
-  layout: PanoLayout,
-): void {
-  const parent = chromeOverlayParent(document);
-  if (el.parentElement !== parent) parent.appendChild(el);
-  else if (parent.lastElementChild !== el) parent.appendChild(el);
-  if (typeof el.showPopover === "function") {
-    el.setAttribute("popover", "manual");
-    try {
-      if (!el.matches(":popover-open")) el.showPopover();
-    } catch {
-      /* already open */
-    }
-  }
-  applyPanoWindowLayout(el, layout);
-  setImportant(el, "display", "flex");
 }

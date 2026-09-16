@@ -5,8 +5,11 @@ import {
   clickScreenMatchesAnchor,
   exceedsDragThreshold,
   finishPointerGestureState,
-  pointerButtonToMapClick,
-} from "./strava-host-page.js";
+  idlePointerGestureState,
+  mapClickAuxClickPlan,
+  mapClickContextMenuPlan,
+  mapClickPointerDownPlan,
+} from "./map-click-gesture.js";
 
 const RW_REQUEST = "ssp-rwgps-isolated";
 const RW_SOURCE = "ssp-rwgps-bridge";
@@ -267,13 +270,14 @@ export class RideWithGpsHostPage implements HostPage {
   }
 
   private onMapPointerDown = (event: PointerEvent): void => {
-    const button = pointerButtonToMapClick(event.button);
-    if (!button) return;
-    if (button === "middle") {
-      if (this.mapClickButton !== "middle") return;
-      event.preventDefault();
-    }
-    this.pointerDown = { x: event.clientX, y: event.clientY, button };
+    const plan = mapClickPointerDownPlan(event.button, this.mapClickButton);
+    if (plan.action === "ignore") return;
+    if (plan.preventDefault) event.preventDefault();
+    this.pointerDown = {
+      x: event.clientX,
+      y: event.clientY,
+      button: plan.button,
+    };
     this.dragExceeded = false;
   };
 
@@ -299,15 +303,14 @@ export class RideWithGpsHostPage implements HostPage {
 
   private onMapAuxClick = (event: MouseEvent): void => {
     if (this.mapListeners.size === 0) return;
-    if (pointerButtonToMapClick(event.button) !== "middle") return;
-    if (this.mapClickButton !== "middle") {
-      this.pointerDown = null;
-      this.dragExceeded = false;
+    const plan = mapClickAuxClickPlan(event.button, this.mapClickButton);
+    if (plan.action === "ignore") return;
+    if (plan.action === "discard") {
+      this.clearPointerGesture();
       return;
     }
     if (!isMapLibreSurfaceTarget(event.target)) {
-      this.pointerDown = null;
-      this.dragExceeded = false;
+      this.clearPointerGesture();
       return;
     }
 
@@ -326,14 +329,13 @@ export class RideWithGpsHostPage implements HostPage {
 
   private onMapContextMenu = (event: MouseEvent): void => {
     if (this.mapListeners.size === 0) return;
-    if (this.mapClickButton !== "right") {
-      this.pointerDown = null;
-      this.dragExceeded = false;
+    const plan = mapClickContextMenuPlan(this.mapClickButton);
+    if (plan.action === "discard") {
+      this.clearPointerGesture();
       return;
     }
     if (!isMapLibreSurfaceTarget(event.target)) {
-      this.pointerDown = null;
-      this.dragExceeded = false;
+      this.clearPointerGesture();
       return;
     }
 
@@ -367,6 +369,12 @@ export class RideWithGpsHostPage implements HostPage {
     this.pointerDown = next.pointerDown;
     this.dragExceeded = next.dragExceeded;
     return dragged;
+  }
+
+  private clearPointerGesture(): void {
+    const idle = idlePointerGestureState();
+    this.pointerDown = idle.pointerDown;
+    this.dragExceeded = idle.dragExceeded;
   }
 
   private async resolveClick(

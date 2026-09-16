@@ -13,9 +13,14 @@ import {
   clickScreenMatchesAnchor,
   exceedsDragThreshold,
   finishPointerGestureState,
-  isRouteBuilderUrl,
   MAP_DRAG_THRESHOLD_PX,
+  mapClickAuxClickPlan,
+  mapClickContextMenuPlan,
+  mapClickPointerDownPlan,
   pointerButtonToMapClick,
+} from "../src/adapters/host-page/map-click-gesture.js";
+import {
+  isRouteBuilderUrl,
   StravaHostPage,
 } from "../src/adapters/host-page/strava-host-page.js";
 
@@ -120,6 +125,33 @@ describe("pointerButtonToMapClick", () => {
     expect(pointerButtonToMapClick(1)).toBe("middle");
     expect(pointerButtonToMapClick(2)).toBe("right");
     expect(pointerButtonToMapClick(3)).toBeNull();
+  });
+});
+
+describe("Map Click Button pointer plans", () => {
+  it("tracks Scroll wheel only when it is the Map Click Button, and suppresses autoscroll", () => {
+    expect(mapClickPointerDownPlan(1, "right")).toEqual({ action: "ignore" });
+    expect(mapClickPointerDownPlan(1, "middle")).toEqual({
+      action: "track",
+      button: "middle",
+      preventDefault: true,
+    });
+    expect(mapClickPointerDownPlan(0, "right")).toEqual({
+      action: "track",
+      button: "left",
+      preventDefault: false,
+    });
+  });
+
+  it("consumes auxclick only for the selected Scroll wheel Map Click Button", () => {
+    expect(mapClickAuxClickPlan(1, "right")).toEqual({ action: "discard" });
+    expect(mapClickAuxClickPlan(1, "middle")).toEqual({ action: "consume" });
+    expect(mapClickAuxClickPlan(0, "middle")).toEqual({ action: "ignore" });
+  });
+
+  it("consumes contextmenu only when Right is the Map Click Button", () => {
+    expect(mapClickContextMenuPlan("left")).toEqual({ action: "discard" });
+    expect(mapClickContextMenuPlan("right")).toEqual({ action: "consume" });
   });
 });
 

@@ -10,45 +10,30 @@
  *
  * Usage: node scripts/repro-pano-overlay-stacking.mjs
  */
-import fs from "node:fs";
-import path from "node:path";
+import * as esbuild from "esbuild";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
-const rootDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const contentCss = fs.readFileSync(
-  path.join(rootDir, "src/extension/content.css"),
+const rootDir = dirname(dirname(fileURLToPath(import.meta.url)));
+const tmp = join(rootDir, ".tmp-pano-overlay-repro");
+const contentCss = readFileSync(
+  join(rootDir, "src/extension/content.css"),
   "utf8",
 );
 
-const overlayFn = `function setImportant(el, name, value) {
-  el.style.setProperty(name, value, "important");
-}
-function applyPanoWindowLayout(el, box) {
-  el.style.zIndex = "2147483647";
-  el.style.flexDirection = "column";
-  el.style.background = "#1a1a1a";
-  el.style.color = "#f2f2f2";
-  setImportant(el, "position", "fixed");
-  setImportant(el, "margin", "0");
-  setImportant(el, "right", "auto");
-  setImportant(el, "bottom", "auto");
-  setImportant(el, "left", box.x + "px");
-  setImportant(el, "top", box.y + "px");
-  setImportant(el, "width", box.width + "px");
-  setImportant(el, "height", box.height + "px");
-}
-function promoteChromeOverlay(el, box) {
-  const parent = document.documentElement;
-  if (parent.lastElementChild !== el) parent.appendChild(el);
-  el.setAttribute("popover", "manual");
-  try {
-    if (!el.matches(":popover-open")) el.showPopover();
-  } catch {}
-  applyPanoWindowLayout(el, box);
-  setImportant(el, "display", "flex");
-}
-function measure(root) {
+rmSync(tmp, { recursive: true, force: true });
+mkdirSync(tmp, { recursive: true });
+
+try {
+  const harnessEntry = join(tmp, "harness.ts");
+  writeFileSync(
+    harnessEntry,
+    `
+import { promoteChromeOverlay } from "../src/adapters/street-view/pano-window-overlay.ts";
+
+function measure(root: HTMLElement) {
   const rect = root.getBoundingClientRect();
   const hit = document.elementFromPoint(
     (rect.width > 0 ? rect.left : 24) + 80,
@@ -63,7 +48,18 @@ function measure(root) {
     hitTag: hit instanceof Element ? hit.tagName + "#" + (hit.id || hit.className) : String(hit),
   };
 }
-function mountOverlay() {
+
+declare global {
+  interface Window {
+    __runOverlayStacking: () => {
+      open: ReturnType<typeof measure>;
+      closed: ReturnType<typeof measure>;
+      restored: ReturnType<typeof measure>;
+    };
+  }
+}
+
+window.__runOverlayStacking = () => {
   const layout = { x: 24, y: 24, width: 420, height: 320 };
   const root = document.createElement("div");
   root.id = "strava-streets-pano-root";
@@ -77,12 +73,25 @@ function mountOverlay() {
   promoteChromeOverlay(root, layout);
   const restored = measure(root);
   return { open, closed, restored };
-}`;
+};
+`,
+  );
 
-const browser = await chromium.launch({ headless: true });
-const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await esbuild.build({
+    entryPoints: [harnessEntry],
+    outfile: join(tmp, "harness.bundle.js"),
+    bundle: true,
+    format: "iife",
+    target: "chrome120",
+    logLevel: "silent",
+  });
 
-await page.setContent(`<!doctype html>
+  const harnessJs = readFileSync(join(tmp, "harness.bundle.js"), "utf8");
+
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+
+  await page.setContent(`<!doctype html>
 <html>
   <head>
     <style>
@@ -101,18 +110,20 @@ await page.setContent(`<!doctype html>
   </body>
 </html>`);
 
-const result = await page.evaluate(
-  `(() => { ${overlayFn}; return mountOverlay(); })()`,
-);
-await browser.close();
+  await page.addScriptTag({ content: harnessJs });
+  const result = await page.evaluate(() => window.__runOverlayStacking());
+  await browser.close();
 
-console.log(JSON.stringify(result, null, 2));
-if (result?.open?.overlayOnTop !== true) {
-  console.error("FAIL: Pano Window is not above the canvas when opened");
-  process.exit(1);
+  console.log(JSON.stringify(result, null, 2));
+  if (result?.open?.overlayOnTop !== true) {
+    console.error("FAIL: Pano Window is not above the canvas when opened");
+    process.exit(1);
+  }
+  if (result?.restored?.overlayOnTop !== true || result?.restored?.popoverOpen !== true) {
+    console.error("FAIL: re-promote did not put the Pano Window above the canvas");
+    process.exit(1);
+  }
+  console.log("PASS: Pano Window stays above the map canvas after popover dismiss");
+} finally {
+  rmSync(tmp, { recursive: true, force: true });
 }
-if (result?.restored?.overlayOnTop !== true || result?.restored?.popoverOpen !== true) {
-  console.error("FAIL: re-promote did not put the Pano Window above the canvas");
-  process.exit(1);
-}
-console.log("PASS: Pano Window stays above the map canvas after popover dismiss");

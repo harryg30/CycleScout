@@ -1,6 +1,15 @@
 import type { LatLng, MapBox, MapClickButton } from "../../domain/types.js";
 import { extensionResourceUrl } from "../../extension/extension-context.js";
 import type { HostPage } from "../../ports/index.js";
+import {
+  clickScreenMatchesAnchor,
+  exceedsDragThreshold,
+  finishPointerGestureState,
+  idlePointerGestureState,
+  mapClickAuxClickPlan,
+  mapClickContextMenuPlan,
+  mapClickPointerDownPlan,
+} from "./map-click-gesture.js";
 
 /** Product host: https://www.strava.com/maps/* only. */
 const ROUTE_BUILDER_PATH = /^\/maps(?:\/|$)/i;
@@ -8,52 +17,8 @@ const ROUTE_BUILDER_PATH = /^\/maps(?:\/|$)/i;
 const MRE_REQUEST = "ssp-mre-isolated";
 const MRE_SOURCE = "ssp-mre-bridge";
 
-/** Ignore Map Click when pointer moved this far (px) — treat as pan/drag. */
-export const MAP_DRAG_THRESHOLD_PX = 5;
-
 export function isRouteBuilderUrl(pathname: string): boolean {
   return ROUTE_BUILDER_PATH.test(pathname);
-}
-
-/** True when down→up movement is large enough to count as a map drag, not a click. */
-export function exceedsDragThreshold(
-  start: { x: number; y: number },
-  end: { x: number; y: number },
-  thresholdPx: number = MAP_DRAG_THRESHOLD_PX,
-): boolean {
-  const dx = end.x - start.x;
-  const dy = end.y - start.y;
-  return dx * dx + dy * dy >= thresholdPx * thresholdPx;
-}
-
-export type PointerGestureState = {
-  pointerDown: { x: number; y: number; button: MapClickButton } | null;
-  dragExceeded: boolean;
-};
-
-/**
- * Clears pointer tracking after a click, contextmenu, or auxclick.
- * Returns whether the gesture was a drag (caller should ignore the click).
- */
-export function finishPointerGestureState(
-  state: PointerGestureState,
-  clientX: number,
-  clientY: number,
-  options?: { requireButton?: MapClickButton },
-): { dragged: boolean; next: PointerGestureState } {
-  const start = state.pointerDown;
-  const buttonOk =
-    options?.requireButton === undefined ||
-    start?.button === options.requireButton;
-  const dragged =
-    state.dragExceeded ||
-    (start != null &&
-      buttonOk &&
-      exceedsDragThreshold(start, { x: clientX, y: clientY }));
-  return {
-    dragged,
-    next: { pointerDown: null, dragExceeded: false },
-  };
 }
 
 type MapClickListener = (point: LatLng, button: MapClickButton) => void;
@@ -74,18 +39,6 @@ type MreResponse = {
 };
 
 const ANCHOR_PEG_ID = "ssp-anchor-peg";
-
-/** Click-pixel cache is only valid when it matches the Anchor being pegged. */
-export function clickScreenMatchesAnchor(
-  screenPoint: LatLng,
-  anchor: LatLng,
-  eps = 1e-7,
-): boolean {
-  return (
-    Math.abs(screenPoint.lat - anchor.lat) <= eps &&
-    Math.abs(screenPoint.lng - anchor.lng) <= eps
-  );
-}
 
 /**
  * Strava Host Page adapter.
@@ -304,15 +257,15 @@ export class StravaHostPage implements HostPage {
   }
 
   private onMapPointerDown = (event: PointerEvent): void => {
-    const button = pointerButtonToMapClick(event.button);
-    if (!button) return;
-    if (button === "middle") {
-      // Ignore leftover scroll-wheel tracking unless it is the Map Click Button.
-      // preventDefault stops Chrome autoscroll so auxclick can set the Anchor.
-      if (this.mapClickButton !== "middle") return;
-      event.preventDefault();
-    }
-    this.pointerDown = { x: event.clientX, y: event.clientY, button };
+    const plan = mapClickPointerDownPlan(event.button, this.mapClickButton);
+    if (plan.action === "ignore") return;
+    // preventDefault stops Chrome autoscroll so auxclick can set the Anchor.
+    if (plan.preventDefault) event.preventDefault();
+    this.pointerDown = {
+      x: event.clientX,
+      y: event.clientY,
+      button: plan.button,
+    };
     this.dragExceeded = false;
   };
 
@@ -337,13 +290,12 @@ export class StravaHostPage implements HostPage {
 
   private onMapAuxClick = (event: MouseEvent): void => {
     if (this.mapListeners.size === 0) return;
-    if (pointerButtonToMapClick(event.button) !== "middle") return;
-    // Only consume scroll-wheel click when it is the active Map Click Button.
+    const plan = mapClickAuxClickPlan(event.button, this.mapClickButton);
+    if (plan.action === "ignore") return;
     // Always clear gesture state so a discarded middle click cannot poison
     // the next left click as a drag.
-    if (this.mapClickButton !== "middle") {
-      this.pointerDown = null;
-      this.dragExceeded = false;
+    if (plan.action === "discard") {
+      this.clearPointerGesture();
       return;
     }
 
@@ -362,12 +314,11 @@ export class StravaHostPage implements HostPage {
 
   private onMapContextMenu = (event: MouseEvent): void => {
     if (this.mapListeners.size === 0) return;
-    // Only consume right-click when it is the active Map Click Button.
+    const plan = mapClickContextMenuPlan(this.mapClickButton);
     // Always clear gesture state so a discarded right-click cannot poison
     // the next left click as a drag (e.g. Map Click Button = left).
-    if (this.mapClickButton !== "right") {
-      this.pointerDown = null;
-      this.dragExceeded = false;
+    if (plan.action === "discard") {
+      this.clearPointerGesture();
       return;
     }
 
@@ -402,6 +353,12 @@ export class StravaHostPage implements HostPage {
     this.pointerDown = next.pointerDown;
     this.dragExceeded = next.dragExceeded;
     return dragged;
+  }
+
+  private clearPointerGesture(): void {
+    const idle = idlePointerGestureState();
+    this.pointerDown = idle.pointerDown;
+    this.dragExceeded = idle.dragExceeded;
   }
 
   private async resolveClick(
@@ -729,14 +686,6 @@ export class StravaHostPage implements HostPage {
       window.postMessage({ source: MRE_REQUEST, id, ...payload }, "*");
     });
   }
-}
-
-/** DOM `event.button` → Map Click Button. 1 is the scroll-wheel (middle) button. */
-export function pointerButtonToMapClick(button: number): MapClickButton | null {
-  if (button === 0) return "left";
-  if (button === 1) return "middle";
-  if (button === 2) return "right";
-  return null;
 }
 
 function findMapRoot(): HTMLElement | null {
